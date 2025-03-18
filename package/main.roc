@@ -1,4 +1,4 @@
 package [
-    AvlTreeBase,
+    AvlTree,
     AvlTreeNum,
 ] {}
