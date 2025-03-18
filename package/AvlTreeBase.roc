@@ -1,8 +1,5 @@
 module [
     AvlTreeBase,
-    Ordering,
-    Ord,
-    compare,
     empty,
     insert,
     get,
@@ -12,10 +9,11 @@ module [
     from_list,
 ]
 
-Ordering : [EQ, LT, GT]
-
-Ord implements
-    compare : a, a -> Ordering where a implements Ord
+import Ord exposing [
+    Ord,
+    compare,
+    Ordering,
+]
 
 AvlTreeBase a b : [
     Empty,

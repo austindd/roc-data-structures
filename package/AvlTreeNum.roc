@@ -8,7 +8,8 @@ module [
     from_list,
 ]
 
-import AvlTreeBase exposing [AvlTreeBase, Ordering, Ord]
+import AvlTreeBase exposing [AvlTreeBase]
+import Ord exposing [Ord, compare, Ordering]
 
 debug_avltreenum : AvlTreeNum a b -> Inspector _
 debug_avltreenum = |@AvlTreeNum(value)|
