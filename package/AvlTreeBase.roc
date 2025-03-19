@@ -5,6 +5,7 @@ module [
     get,
     map,
     walk,
+    walk_until,
     to_list,
     from_list,
 ]
@@ -144,6 +145,22 @@ walk = |avl_tree, state, fn|
             this_state = fn(l_state, k, v)
             r_state = walk(r, this_state, fn)
             r_state
+
+walk_until : AvlTreeBase a b, state, (state, a, b -> [Continue(state), Break(state)]) -> state
+walk_until = |avl_tree, state, fn|
+    when avl_tree is
+        Empty -> state
+        Leaf({ k, v }) ->
+            when fn(state, k, v) is
+                Continue(new_state) -> new_state
+                Break(new_state) -> new_state
+
+        Node({ l, k, v, r }) ->
+            l_state = walk_until(l, state, fn)
+            this_state = fn(l_state, k, v)
+            when this_state is
+                Continue(new_state) -> walk_until(r, new_state, fn)
+                Break(new_state) -> new_state
 
 to_list : AvlTreeBase a b -> List (a, b)
 to_list = |avl_tree|
