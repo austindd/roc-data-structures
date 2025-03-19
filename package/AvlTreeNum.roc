@@ -3,7 +3,7 @@ module [
     insert,
     get,
     map,
-    walk_entries,
+    walk,
     to_list,
     from_list,
 ]
@@ -51,9 +51,9 @@ map : AvlTreeNum k v, (v -> w) -> AvlTreeNum k w
 map = |@AvlTreeNum(tree), fn|
     AvlTreeBase.map(tree, fn) |> @AvlTreeNum
 
-walk_entries : AvlTreeNum k v, state, (state, Num k, v -> state) -> state
-walk_entries = |@AvlTreeNum(tree), state, fn|
-    AvlTreeBase.walk_entries(
+walk : AvlTreeNum k v, state, (state, Num k, v -> state) -> state
+walk = |@AvlTreeNum(tree), state, fn|
+    AvlTreeBase.walk(
         tree,
         state,
         |s, @NumKey(k), v| fn(s, k, v),
@@ -61,7 +61,7 @@ walk_entries = |@AvlTreeNum(tree), state, fn|
 
 to_list : AvlTreeNum k v -> List (Num k, v)
 to_list = |@AvlTreeNum(tree)|
-    AvlTreeBase.walk_entries(
+    AvlTreeBase.walk(
         tree,
         [],
         |list, @NumKey(key), value|
