@@ -4,7 +4,7 @@ module [
     insert,
     get,
     map,
-    walk_entries,
+    walk,
     to_list,
     from_list,
 ]
@@ -134,20 +134,20 @@ map = |avl_tree, fn|
         Node({ l, k, v, r }) ->
             mknode(map(l, fn), k, fn(v), map(r, fn))
 
-walk_entries : AvlTreeBase a b, state, (state, a, b -> state) -> state
-walk_entries = |avl_tree, state, fn|
+walk : AvlTreeBase a b, state, (state, a, b -> state) -> state
+walk = |avl_tree, state, fn|
     when avl_tree is
         Empty -> state
         Leaf({ k, v }) -> fn(state, k, v)
         Node({ l, k, v, r }) ->
-            l_state = walk_entries(l, state, fn)
+            l_state = walk(l, state, fn)
             this_state = fn(l_state, k, v)
-            r_state = walk_entries(r, this_state, fn)
+            r_state = walk(r, this_state, fn)
             r_state
 
 to_list : AvlTreeBase a b -> List (a, b)
 to_list = |avl_tree|
-    walk_entries(
+    walk(
         avl_tree,
         [],
         |list, key, value|
@@ -156,11 +156,10 @@ to_list = |avl_tree|
 
 build_balanced_tree : List (Entry a b), U64, U64 -> AvlTreeBase a b
 build_balanced_tree = |items, start, end|
-    if start >= end then
+    if start > end then
         Empty
     else
-        when (end - start) is
-            0 -> Empty
+        when (end - start + 1) is
             1 ->
                 @Entry((k, v)) =
                     when List.get(items, start) is
@@ -195,7 +194,7 @@ build_balanced_tree = |items, start, end|
                 mknode(Leaf({ k: k1, v: v1 }), k2, v2, Leaf({ k: k3, v: v3 }))
 
             _ ->
-                mid = start + Num.ceiling(Num.to_frac(end - start) / 2)
+                mid = start + Num.floor(Num.to_frac(end - start) / 2)
                 @Entry((k, v)) =
                     when List.get(items, mid) is
                         Err(_) -> crash impossible
@@ -220,7 +219,7 @@ entry_compare = |@Entry(a), @Entry(b)|
     (k2, _) = b
     compare(k1, k2)
 
-from_list : List (a, b) -> AvlTreeBase a b where a implements Ord
+from_list : List (a, b) -> AvlTreeBase a b where a implements Ord & Inspect
 from_list = |pairs|
     sorted_pairs = pairs |> List.map(@Entry) |> List.sort_with(entry_compare)
     sorted_pairs_length = List.len(sorted_pairs)

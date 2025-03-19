@@ -11,7 +11,7 @@ module [
 import AvlTreeBase exposing [AvlTreeBase]
 import Ord exposing [Ord, compare, Ordering]
 
-debug_avltreenum : AvlTreeNum a b -> Inspector _
+debug_avltreenum : AvlTreeNum a b -> (Inspector _) where a implements Ord & Inspect
 debug_avltreenum = |@AvlTreeNum(value)|
     Inspect.to_inspector(value)
 
@@ -75,14 +75,13 @@ from_list = |list|
     @AvlTreeNum(avl_tree)
 
 expect
-    from_list([(1, "1"), (2, "2"), (3, "3"), (4, "4")])
-    == (
-        empty({})
+    tree_a = from_list([(1, "1"), (2, "2"), (3, "3"), (4, "4")])
+    tree_b = empty({})
         |> insert(1, "1")
         |> insert(2, "2")
         |> insert(3, "3")
         |> insert(4, "4")
-    )
+    tree_a == tree_b
 
 test : {} -> AvlTreeNum a Str
 test = |{}|
