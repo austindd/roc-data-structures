@@ -2,6 +2,10 @@ module [
     ListMap,
     insert,
     get,
+    map,
+    walk,
+    to_list,
+    from_list,
 ]
 
 ListMap a b := {
@@ -87,3 +91,25 @@ walk = |@ListMap(list_map), state, fn|
                 Ok((k, v)) -> fn(s, k, v)
                 Err(_) -> s
         )
+
+to_list : ListMap a b -> List (a, b)
+to_list = |@ListMap(list_map)|
+    List.keep_oks(list_map.list, |result| result)
+
+from_list : List (a, b) -> ListMap a b where a implements Eq
+from_list = |list|
+    @ListMap({
+        count : 0,
+        list : List.map(list, |pair| Ok(pair)),
+    })
+
+map : ListMap a b, (b -> c) -> ListMap a c
+map = |@ListMap(list_map), fn|
+    @ListMap({
+        count : list_map.count,
+        list : List.map(list_map.list, |result|
+            when result is
+                Ok((k, v)) -> Ok((k, fn(v)))
+                Err({}) -> Err({})
+        ),
+    })
