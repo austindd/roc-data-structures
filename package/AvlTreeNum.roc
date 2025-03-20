@@ -75,12 +75,21 @@ from_list = |list|
     @AvlTreeNum(avl_tree)
 
 expect
-    tree_a = from_list([(1, "1"), (2, "2"), (3, "3"), (4, "4")])
+    tree_a = from_list([
+            (1, "1"),
+            (2, "2"),
+            (3, "3"),
+            (4, "4"),
+            (5, "5"),
+            (6, "6"),
+        ])
     tree_b = empty({})
         |> insert(1, "1")
         |> insert(2, "2")
         |> insert(3, "3")
         |> insert(4, "4")
+        |> insert(5, "5")
+        |> insert(6, "6")
     tree_a == tree_b
 
 test : {} -> AvlTreeNum a Str

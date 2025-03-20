@@ -209,6 +209,24 @@ build_balanced_tree = |items, start, end|
                         Err(_) -> crash impossible
                         Ok(value) -> value
                 mknode(Leaf({ k: k1, v: v1 }), k2, v2, Leaf({ k: k3, v: v3 }))
+            4 ->
+                @Entry((k1, v1)) =
+                    when List.get(items, start) is
+                        Err(_) -> crash impossible
+                        Ok(value) -> value
+                @Entry((k2, v2)) =
+                    when List.get(items, start + 1) is
+                        Err(_) -> crash impossible
+                        Ok(value) -> value
+                @Entry((k3, v3)) =
+                    when List.get(items, start + 2) is
+                        Err(_) -> crash impossible
+                        Ok(value) -> value
+                @Entry((k4, v4)) =
+                    when List.get(items, start + 3) is
+                        Err(_) -> crash impossible
+                        Ok(value) -> value
+                mknode(mknode(Leaf({ k: k1, v: v1 }), k2, v2, Empty), k3, v3, Leaf({ k: k4, v: v4 }))
 
             _ ->
                 mid = start + Num.floor(Num.to_frac(end - start) / 2)

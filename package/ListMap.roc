@@ -1,5 +1,7 @@
 module [
     ListMap,
+    insert,
+    get,
 ]
 
 ListMap a b := {
@@ -75,4 +77,13 @@ get = |@ListMap(list_map), key|
                         Break(Ok(v))
                     else
                         Continue(Err({}))
+        )
+
+walk : ListMap a b, state, (state, a, b -> state) -> state
+walk = |@ListMap(list_map), state, fn|
+    list_map.list
+        |> List.walk(state, |s, result|
+            when result is
+                Ok((k, v)) -> fn(s, k, v)
+                Err(_) -> s
         )
