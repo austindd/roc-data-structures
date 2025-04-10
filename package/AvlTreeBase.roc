@@ -205,7 +205,7 @@ from_sorted_list = |list|
         [] -> Empty
         [(k, v)] -> Leaf({k, v})
         _ ->
-            mid = Num.floor(Num.to_frac(list_length) / 2)
+            mid = Num.ceiling(Num.to_frac(list_length) / 2)
             when List.get(list, mid) is
                 Err(OutOfBounds) -> Empty
                 Ok((mid_key, mid_value)) ->

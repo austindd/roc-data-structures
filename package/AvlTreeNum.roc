@@ -80,12 +80,12 @@ expect
             (2, "2"),
             (3, "3"),
         ])
-        |> to_list
+        #|> to_list
     tree_b = empty({})
         |> insert(1, "1")
         |> insert(2, "2")
         |> insert(3, "3")
-        |> to_list
+        #|> to_list
     tree_a == tree_b
 
 expect
