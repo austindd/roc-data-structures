@@ -8,7 +8,6 @@ module [
     walk_until,
     to_list,
     from_list,
-    equal,
 ]
 
 import Ord exposing [
@@ -148,7 +147,7 @@ walk = |avl_tree, state, fn|
             r_state = walk(r, this_state, fn)
             r_state
 
-walk_until : AvlTreeBase a b, state, (state, a, b -> [Continue(state), Break(state)]) -> state
+walk_until : AvlTreeBase a b, state, (state, a, b -> [Continue state, Break state]) -> state
 walk_until = |avl_tree, state, fn|
     when avl_tree is
         Empty -> state
@@ -198,12 +197,12 @@ from_list = |pairs|
     else
         from_sorted_list(sorted_pairs)
 
-from_sorted_list : List (a, b) -> (AvlTreeBase a b)
+from_sorted_list : List (a, b) -> AvlTreeBase a b
 from_sorted_list = |list|
     list_length = List.len(list)
     when list is
         [] -> Empty
-        [(k, v)] -> Leaf({k, v})
+        [(k, v)] -> Leaf({ k, v })
         _ ->
             mid = Num.ceiling(Num.to_frac(list_length) / 2)
             when List.get(list, mid) is

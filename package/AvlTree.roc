@@ -6,6 +6,8 @@ module [
     map,
     walk,
     walk_until,
+    to_list,
+    from_list,
 ]
 
 import AvlTreeBase exposing [AvlTreeBase]
