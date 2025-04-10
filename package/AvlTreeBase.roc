@@ -172,77 +172,6 @@ to_list = |avl_tree|
             List.append(list, (key, value)),
     )
 
-build_balanced_tree : List (Entry a b), U64, U64 -> AvlTreeBase a b
-build_balanced_tree = |items, start, end|
-    if start > end then
-        Empty
-    else
-        when (end - start + 1) is
-            1 ->
-                @Entry((k, v)) =
-                    when List.get(items, start) is
-                        Err(_) -> crash impossible
-                        Ok(value) -> value
-                Leaf({ k, v })
-
-            2 ->
-                @Entry((k1, v1)) =
-                    when List.get(items, start) is
-                        Err(_) -> crash impossible
-                        Ok(value) -> value
-                @Entry((k2, v2)) =
-                    when List.get(items, start + 1) is
-                        Err(_) -> crash impossible
-                        Ok(value) -> value
-                mknode(Leaf({ k: k1, v: v1 }), k2, v2, Empty)
-
-            3 ->
-                @Entry((k1, v1)) =
-                    when List.get(items, start) is
-                        Err(_) -> crash impossible
-                        Ok(value) -> value
-                @Entry((k2, v2)) =
-                    when List.get(items, start + 1) is
-                        Err(_) -> crash impossible
-                        Ok(value) -> value
-                @Entry((k3, v3)) =
-                    when List.get(items, start + 2) is
-                        Err(_) -> crash impossible
-                        Ok(value) -> value
-                mknode(Leaf({ k: k1, v: v1 }), k2, v2, Leaf({ k: k3, v: v3 }))
-            4 ->
-                @Entry((k1, v1)) =
-                    when List.get(items, start) is
-                        Err(_) -> crash impossible
-                        Ok(value) -> value
-                @Entry((k2, v2)) =
-                    when List.get(items, start + 1) is
-                        Err(_) -> crash impossible
-                        Ok(value) -> value
-                @Entry((k3, v3)) =
-                    when List.get(items, start + 2) is
-                        Err(_) -> crash impossible
-                        Ok(value) -> value
-                @Entry((k4, v4)) =
-                    when List.get(items, start + 3) is
-                        Err(_) -> crash impossible
-                        Ok(value) -> value
-                mknode(mknode(Leaf({ k: k1, v: v1 }), k2, v2, Empty), k3, v3, Leaf({ k: k4, v: v4 }))
-
-            _ ->
-                mid = start + Num.floor(Num.to_frac(end - start) / 2)
-                @Entry((k, v)) =
-                    when List.get(items, mid) is
-                        Err(_) -> crash impossible
-                        Ok(value) -> value
-                node = mknode(
-                    build_balanced_tree(items, start, mid - 1),
-                    k,
-                    v,
-                    build_balanced_tree(items, mid + 1, end),
-                )
-                node
-
 Entry a b := (a, b) implements [
         Ord {
             compare: entry_compare,
@@ -267,8 +196,6 @@ from_list = |pairs|
     if (sorted_pairs_length < 1) then
         Empty
     else
-        #build_balanced_tree(sorted_pairs, 0, List.len(sorted_pairs) - 1)
-        #from_sorted_list(sorted_pairs, 0, sorted_pairs_length)
         from_sorted_list(sorted_pairs)
 
 from_sorted_list : List (a, b) -> (AvlTreeBase a b)
@@ -304,62 +231,3 @@ from_sorted_list = |list|
 #    right: fromSortedList(sortedList.slice(mid + 1))
 #  };
 #}
-
-#from_sorted_list : List (a, b), U64, U64 -> (AvlTreeBase a b)
-#from_sorted_list = |list, start, end|
-#    list_length = List.len(list)
-#    if (list_length == 0) then
-#        Empty
-#    else
-#        mid : U64
-#        mid =
-#        Num.floor(
-#            Num.to_frac(
-#                end - Num.floor(
-#                    (Num.to_frac(
-#                        (end) - start
-#                    ) / 2)
-#                ) + 1
-#            )
-#        ) - 1
-
-#        if (start > end) then
-#            Empty
-#        else
-#            when List.get(list, mid) is
-#                Err(OutOfBounds) ->
-#                    Empty
-#                Ok((mid_key, mid_value)) ->
-#                    left_node = when mid - 1 is
-#                        m if m <= -(1u64) -> Empty
-#                        m if m <= start ->
-#                            when List.get(list, m) is
-#                                Ok((k, v)) ->
-#                                    Leaf({k, v})
-#                                Err(OutOfBounds) -> Empty
-#                        m -> from_sorted_list(list, start, m)
-
-#                    right_node = when mid + 1 is
-#                        m if m >= list_length -> Empty
-#                        m if m >= end ->
-#                            when List.get(list, m) is
-#                                Ok((k, v)) ->
-#                                    Leaf({k, v})
-#                                Err(OutOfBounds) -> Empty
-#                        m -> from_sorted_list(
-#                            list,
-#                            m,
-#                            end
-#                        )
-
-#                    #left_node = Empty
-#                    #right_node = Leaf({k: mid_key, v: mid_value})
-
-#                    node : AvlTreeBase _ _
-#                    node = mknode(
-#                        left_node,
-#                        mid_key,
-#                        mid_value,
-#                        right_node,
-#                    )
-#                    node
