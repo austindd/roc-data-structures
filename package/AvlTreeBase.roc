@@ -201,22 +201,23 @@ from_list = |pairs|
 from_sorted_list : List (a, b) -> (AvlTreeBase a b)
 from_sorted_list = |list|
     list_length = List.len(list)
-    if list_length == 0 then
-        Empty
-    else
-        mid = Num.floor(Num.to_frac(list_length) / 2)
-        when List.get(list, mid) is
-            Err(OutOfBounds) -> Empty
-            Ok((mid_key, mid_value)) ->
-                left_node = list |> List.take_first(mid) |> from_sorted_list
-                right_node = list |> List.drop_first(mid + 1) |> from_sorted_list
-                node = mknode(
-                    left_node,
-                    mid_key,
-                    mid_value,
-                    right_node,
-                )
-                node
+    when list is
+        [] -> Empty
+        [(k, v)] -> Leaf({k, v})
+        _ ->
+            mid = Num.floor(Num.to_frac(list_length) / 2)
+            when List.get(list, mid) is
+                Err(OutOfBounds) -> Empty
+                Ok((mid_key, mid_value)) ->
+                    left_node = list |> List.take_first(mid) |> from_sorted_list
+                    right_node = list |> List.drop_first(mid + 1) |> from_sorted_list
+                    node = mknode(
+                        left_node,
+                        mid_key,
+                        mid_value,
+                        right_node,
+                    )
+                    node
 
 #function fromSortedList<T>(sortedList: T[]): Tree<T> {
 #  if (sortedList.length === 0) return null;
