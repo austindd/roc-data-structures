@@ -1,5 +1,5 @@
 module [
-    RBTree,
+    RbTreeBase,
     empty,
     insert,
     contains,
@@ -7,102 +7,66 @@ module [
 
 import Ord exposing [Ord, compare, Ordering]
 
-# Define the possible colors for a node
 Color : [Red, Black]
 
-# Define the recursive tree structure
-# RBTree a means a Red-Black Tree holding values of type 'a'
-# It can be Empty or a Node containing:
-# - Color (Red or Black)
-# - value of type 'a'
-# - left child (RBTree a)
-# - right child (RBTree a)
-RBTree a : [
+RbTreeBase a : [
     Empty,
     Node {
             color : Color,
             nodeVal : a,
-            left : RBTree a,
-            right : RBTree a,
+            left : RbTreeBase a,
+            right : RbTreeBase a,
         },
 ]
 
-# Create an empty tree
-empty : {} -> RBTree a
+empty : {} -> RbTreeBase a
 empty = |{}| Empty
 
-# Check if a value exists in the tree
-# Requires the type 'a' to implement the Ord ability for comparison
-contains : RBTree a, a -> Bool where a implements Ord
+contains : RbTreeBase a, a -> Bool where a implements Ord
 contains = |tree, value|
     when tree is
         Empty ->
-            # Value not found in an empty tree
             Bool.false
 
         Node({ nodeVal, left, right }) ->
-            # Compare the target value with the current node's value
             when compare(value, nodeVal) is
                 LT ->
-                    # If target is less, search in the left subtree
                     contains(left, value)
 
                 GT ->
-                    # If target is greater, search in the right subtree
                     contains(right, value)
 
                 EQ ->
-                    # If equal, the value is found
                     Bool.true
 
-# Core insertion function
-# Requires the type 'a' to implement the Ord ability for comparison
-insert : a, RBTree a -> RBTree a where a implements Ord
+insert : a, RbTreeBase a -> RbTreeBase a where a implements Ord
 insert = |value, tree|
-    # insertHelper does the recursive insertion and balancing
     newTree = insertHelper(value, tree)
-
-    # The root of the Red-Black Tree must always be Black.
-    # insertHelper might return a Red root if the tree was initially empty
-    # or if balancing propagates Red up to the root.
     when newTree is
         Node({ color, nodeVal, left, right }) -> Node({ color: Black, nodeVal, left, right }) # Force root to Black
         Empty -> Empty # Should not happen if insertHelper is correct, but handle defensively
 
-# Recursive helper function for insertion and balancing
-insertHelper : a, RBTree a -> RBTree a where a implements Ord
+insertHelper : a, RbTreeBase a -> RbTreeBase a where a implements Ord
 insertHelper = |value, tree|
     when tree is
         Empty ->
-            # Base case: Inserted element becomes a new Red leaf node.
             Node({ color: Red, nodeVal: value, left: Empty, right: Empty })
 
         Node({ color, nodeVal, left, right }) ->
-            # Compare the value to insert with the current node's value
             comparison = compare(value, nodeVal)
             when comparison is
                 LT ->
-                    # Value is less, insert into the left subtree recursively
                     newLeft = insertHelper(value, left)
-                    # Balance the current node after left insertion
                     balance(color, nodeVal, newLeft, right)
 
                 GT ->
-                    # Value is greater, insert into the right subtree recursively
                     newRight = insertHelper(value, right)
-                    # Balance the current node after right insertion
                     balance(color, nodeVal, left, newRight)
 
                 EQ ->
-                    # Value already exists, return the original node (no duplicates)
-                    # Since Roc is immutable, returning the same node is efficient.
                     Node({ color, nodeVal, left, right })
 
-# Balance function: Maintains Red-Black Tree properties after insertion.
-# This function checks for violations (like Red parent with Red child)
-# and performs rotations and color flips to fix them.
-# This is based on the standard Red-Black Tree balancing cases (Okasaki style).
-balance : Color, a, RBTree a, RBTree a -> RBTree a where a implements Ord
+balance : Color, a, RbTreeBase a, RbTreeBase a -> RbTreeBase a where a implements Ord
 balance = |nodeColor, nodeVal, left, right|
     when (nodeColor, nodeVal, left, right) is
         # Case 1: Left-Leaning Red Violation (Black grandparent, Red parent, Red child)
