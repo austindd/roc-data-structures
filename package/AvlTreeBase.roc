@@ -36,6 +36,7 @@ impossible = "Impossible"
 empty : {} -> AvlTreeBase a b
 empty = |{}| Empty
 
+mknode : AvlTreeBase a b, a, b, AvlTreeBase a b -> AvlTreeBase a b
 mknode = |l, k, v, r|
     Node({ l, k, v, h: 1 + Num.max(height(l), height(r)), r })
 
@@ -254,11 +255,111 @@ entry_compare = |@Entry(a), @Entry(b)|
     (k2, _) = b
     compare(k1, k2)
 
+entry_compare_2 : (k, v), (k, v) -> Ordering where k implements Ord
+entry_compare_2 = |(a, _), (b, _)|
+    compare(a, b)
+
 from_list : List (a, b) -> AvlTreeBase a b where a implements Ord & Inspect
 from_list = |pairs|
-    sorted_pairs = pairs |> List.map(@Entry) |> List.sort_with(entry_compare)
+    #sorted_pairs = pairs |> List.map(@Entry) |> List.sort_with(entry_compare)
+    sorted_pairs = pairs |> List.sort_with(entry_compare_2)
     sorted_pairs_length = List.len(sorted_pairs)
     if (sorted_pairs_length < 1) then
         Empty
     else
-        build_balanced_tree(sorted_pairs, 0, List.len(sorted_pairs) - 1)
+        #build_balanced_tree(sorted_pairs, 0, List.len(sorted_pairs) - 1)
+        #from_sorted_list(sorted_pairs, 0, sorted_pairs_length)
+        from_sorted_list(sorted_pairs)
+
+from_sorted_list : List (a, b) -> (AvlTreeBase a b)
+from_sorted_list = |list|
+    list_length = List.len(list)
+    if list_length == 0 then
+        Empty
+    else
+        mid = Num.floor(Num.to_frac(list_length) / 2)
+        when List.get(list, mid) is
+            Err(OutOfBounds) -> Empty
+            Ok((mid_key, mid_value)) ->
+                left_node = list |> List.take_first(mid) |> from_sorted_list
+                right_node = list |> List.drop_first(mid + 1) |> from_sorted_list
+                node = mknode(
+                    left_node,
+                    mid_key,
+                    mid_value,
+                    right_node,
+                )
+                node
+
+#function fromSortedList<T>(sortedList: T[]): Tree<T> {
+#  if (sortedList.length === 0) return null;
+
+#  const mid = Math.floor(sortedList.length / 2);
+#  const value = sortedList[mid];
+
+#  return {
+#    value,
+#    height: 1 + Math.max(height(fromSortedList(sortedList.slice(0, mid))), height(fromSortedList(sortedList.slice(mid + 1))));
+#    left: fromSortedList(sortedList.slice(0, mid)),
+#    right: fromSortedList(sortedList.slice(mid + 1))
+#  };
+#}
+
+#from_sorted_list : List (a, b), U64, U64 -> (AvlTreeBase a b)
+#from_sorted_list = |list, start, end|
+#    list_length = List.len(list)
+#    if (list_length == 0) then
+#        Empty
+#    else
+#        mid : U64
+#        mid =
+#        Num.floor(
+#            Num.to_frac(
+#                end - Num.floor(
+#                    (Num.to_frac(
+#                        (end) - start
+#                    ) / 2)
+#                ) + 1
+#            )
+#        ) - 1
+
+#        if (start > end) then
+#            Empty
+#        else
+#            when List.get(list, mid) is
+#                Err(OutOfBounds) ->
+#                    Empty
+#                Ok((mid_key, mid_value)) ->
+#                    left_node = when mid - 1 is
+#                        m if m <= -(1u64) -> Empty
+#                        m if m <= start ->
+#                            when List.get(list, m) is
+#                                Ok((k, v)) ->
+#                                    Leaf({k, v})
+#                                Err(OutOfBounds) -> Empty
+#                        m -> from_sorted_list(list, start, m)
+
+#                    right_node = when mid + 1 is
+#                        m if m >= list_length -> Empty
+#                        m if m >= end ->
+#                            when List.get(list, m) is
+#                                Ok((k, v)) ->
+#                                    Leaf({k, v})
+#                                Err(OutOfBounds) -> Empty
+#                        m -> from_sorted_list(
+#                            list,
+#                            m,
+#                            end
+#                        )
+
+#                    #left_node = Empty
+#                    #right_node = Leaf({k: mid_key, v: mid_value})
+
+#                    node : AvlTreeBase _ _
+#                    node = mknode(
+#                        left_node,
+#                        mid_key,
+#                        mid_value,
+#                        right_node,
+#                    )
+#                    node

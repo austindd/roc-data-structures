@@ -79,10 +79,25 @@ expect
             (1, "1"),
             (2, "2"),
             (3, "3"),
+        ])
+        |> to_list
+    tree_b = empty({})
+        |> insert(1, "1")
+        |> insert(2, "2")
+        |> insert(3, "3")
+        |> to_list
+    tree_a == tree_b
+
+expect
+    tree_a = from_list([
+            (1, "1"),
+            (2, "2"),
+            (3, "3"),
             (4, "4"),
             (5, "5"),
             (6, "6"),
         ])
+        |> to_list
     tree_b = empty({})
         |> insert(1, "1")
         |> insert(2, "2")
@@ -90,9 +105,27 @@ expect
         |> insert(4, "4")
         |> insert(5, "5")
         |> insert(6, "6")
+        |> to_list
     tree_a == tree_b
 
-test : {} -> AvlTreeNum a Str
-test = |{}|
-    empty({})
-    |> insert(1, "1")
+expect
+    tree_a = from_list([
+            (1, "1"),
+            (2, "2"),
+            (3, "3"),
+            (4, "4"),
+            (5, "5"),
+            (6, "6"),
+            (7, "7"),
+        ])
+        |> to_list
+    tree_b = empty({})
+        |> insert(1, "1")
+        |> insert(2, "2")
+        |> insert(3, "3")
+        |> insert(4, "4")
+        |> insert(5, "5")
+        |> insert(6, "6")
+        |> insert(7, "7")
+        |> to_list
+    tree_a == tree_b
