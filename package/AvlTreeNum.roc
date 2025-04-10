@@ -11,7 +11,7 @@ module [
 import AvlTreeBase exposing [AvlTreeBase]
 import Ord exposing [Ord, compare, Ordering]
 
-debug_avltreenum : AvlTreeNum a b -> (Inspector _) where a implements Ord & Inspect
+debug_avltreenum : AvlTreeNum a b -> Inspector _ where a implements Ord & Inspect
 debug_avltreenum = |@AvlTreeNum(value)|
     Inspect.to_inspector(value)
 
@@ -75,30 +75,37 @@ from_list = |list|
     @AvlTreeNum(avl_tree)
 
 expect
-    tree_a = from_list([
+    tree_a = from_list(
+        [
             (1, "1"),
             (2, "2"),
             (3, "3"),
-        ])
-        #|> to_list
-    tree_b = empty({})
+        ],
+    )
+    # |> to_list
+    tree_b =
+        empty({})
         |> insert(1, "1")
         |> insert(2, "2")
         |> insert(3, "3")
-        #|> to_list
+    # |> to_list
     tree_a == tree_b
 
 expect
-    tree_a = from_list([
-            (1, "1"),
-            (2, "2"),
-            (3, "3"),
-            (4, "4"),
-            (5, "5"),
-            (6, "6"),
-        ])
+    tree_a =
+        from_list(
+            [
+                (1, "1"),
+                (2, "2"),
+                (3, "3"),
+                (4, "4"),
+                (5, "5"),
+                (6, "6"),
+            ],
+        )
         |> to_list
-    tree_b = empty({})
+    tree_b =
+        empty({})
         |> insert(1, "1")
         |> insert(2, "2")
         |> insert(3, "3")
@@ -109,17 +116,21 @@ expect
     tree_a == tree_b
 
 expect
-    tree_a = from_list([
-            (1, "1"),
-            (2, "2"),
-            (3, "3"),
-            (4, "4"),
-            (5, "5"),
-            (6, "6"),
-            (7, "7"),
-        ])
+    tree_a =
+        from_list(
+            [
+                (1, "1"),
+                (2, "2"),
+                (3, "3"),
+                (4, "4"),
+                (5, "5"),
+                (6, "6"),
+                (7, "7"),
+            ],
+        )
         |> to_list
-    tree_b = empty({})
+    tree_b =
+        empty({})
         |> insert(1, "1")
         |> insert(2, "2")
         |> insert(3, "3")

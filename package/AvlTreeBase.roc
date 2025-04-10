@@ -8,6 +8,7 @@ module [
     walk_until,
     to_list,
     from_list,
+    equal,
 ]
 
 import Ord exposing [
@@ -190,7 +191,6 @@ entry_compare_2 = |(a, _), (b, _)|
 
 from_list : List (a, b) -> AvlTreeBase a b where a implements Ord & Inspect
 from_list = |pairs|
-    #sorted_pairs = pairs |> List.map(@Entry) |> List.sort_with(entry_compare)
     sorted_pairs = pairs |> List.sort_with(entry_compare_2)
     sorted_pairs_length = List.len(sorted_pairs)
     if (sorted_pairs_length < 1) then
@@ -218,17 +218,3 @@ from_sorted_list = |list|
                         right_node,
                     )
                     node
-
-#function fromSortedList<T>(sortedList: T[]): Tree<T> {
-#  if (sortedList.length === 0) return null;
-
-#  const mid = Math.floor(sortedList.length / 2);
-#  const value = sortedList[mid];
-
-#  return {
-#    value,
-#    height: 1 + Math.max(height(fromSortedList(sortedList.slice(0, mid))), height(fromSortedList(sortedList.slice(mid + 1))));
-#    left: fromSortedList(sortedList.slice(0, mid)),
-#    right: fromSortedList(sortedList.slice(mid + 1))
-#  };
-#}
