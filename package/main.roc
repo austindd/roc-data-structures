@@ -2,5 +2,5 @@ package [
     AvlTree,
     AvlTreeNum,
     ListMap,
-    RbTree,
+    RbTreeBase,
 ] {}
