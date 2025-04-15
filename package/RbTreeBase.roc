@@ -2,153 +2,271 @@ module [
     RbTreeBase,
     empty,
     insert,
-    contains,
+    get, # Replaced contains
+    map, # New
+    walk, # New
+    walk_until, # New
+    to_list, # New
+    from_list, # New
 ]
 
-import Ord exposing [Ord, compare, Ordering]
+import Ord exposing [Ord, compare]
+# Add List import for new functions
 
 Color : [Red, Black]
 
-RbTreeBase a : [
+## A Red-Black Tree storing key-value pairs.
+## The key `a` must implement `Ord`.
+RbTreeBase a b : [
     Empty,
     Node {
             color : Color,
-            nodeVal : a,
-            left : RbTreeBase a,
-            right : RbTreeBase a,
+            # Changed from nodeVal to k and v
+            k : a,
+            v : b,
+            left : RbTreeBase a b,
+            right : RbTreeBase a b,
         },
-]
+] where a implements Eq & Ord & Inspect, b implements Eq & Inspect
+    implements [
+        Eq { eq: eq_rb_tree },
+        Inspect { to_inspector: inspect_rb_tree }
+    ]
 
-empty : {} -> RbTreeBase a
+# inspect_rb_tree : RbTreeBase a b -> Inspector f where a implements Inspect, b implements Inspect
+# inspect_rb_tree = |tree| # Basic placeholder - could be more detailed
+#     Inspect.to_inspector(to_list(tree))
+
+## Creates an empty Red-Black Tree Map.
+empty : {} -> RbTreeBase a b
 empty = |{}| Empty
 
-contains : RbTreeBase a, a -> Bool where a implements Ord
-contains = |tree, value|
+## Retrieves the value associated with a key.
+## Returns `Ok value` if the key exists, `Err {}` otherwise.
+get : RbTreeBase a b, a -> Result b {}
+get = |tree, key|
     when tree is
         Empty ->
-            Bool.false
+            Err {}
 
-        Node({ nodeVal, left, right }) ->
-            when compare(value, nodeVal) is
-                LT ->
-                    contains(left, value)
+        Node({ k, v, left, right }) ->
+            when compare(key, k) is
+                LT -> get(left, key)
+                GT -> get(right, key)
+                EQ -> Ok(v)
 
-                GT ->
-                    contains(right, value)
-
-                EQ ->
-                    Bool.true
-
-insert : a, RbTreeBase a -> RbTreeBase a where a implements Ord
-insert = |value, tree|
-    newTree = insertHelper(value, tree)
+## Inserts a key-value pair into the tree.
+## If the key already exists, its value is updated.
+insert : a, b, RbTreeBase a b -> RbTreeBase a b where a implements Ord & Inspect
+insert = |key, value, tree|
+    newTree = insertHelper(key, value, tree)
+    # Force root to Black
     when newTree is
-        Node({ color, nodeVal, left, right }) -> Node({ color: Black, nodeVal, left, right }) # Force root to Black
-        Empty -> Empty # Should not happen if insertHelper is correct, but handle defensively
+        Node({ color: _, k, v, left, right }) -> Node({ color: Black, k, v, left, right })
+        Empty -> Empty # Should only happen if initial tree was Empty and insertHelper returned Empty (which it shouldn't)
 
-insertHelper : a, RbTreeBase a -> RbTreeBase a where a implements Ord
-insertHelper = |value, tree|
+# Helper function for recursive insertion
+insertHelper : a, b, RbTreeBase a b -> RbTreeBase a b where a implements Ord & Inspect
+insertHelper = |key, value, tree|
     when tree is
         Empty ->
-            Node({ color: Red, nodeVal: value, left: Empty, right: Empty })
+            # New nodes are always Red initially
+            Node({ color: Red, k: key, v: value, left: Empty, right: Empty })
 
-        Node({ color, nodeVal, left, right }) ->
-            comparison = compare(value, nodeVal)
+        Node({ color, k, v, left, right }) ->
+            comparison = compare(key, k)
             when comparison is
                 LT ->
-                    newLeft = insertHelper(value, left)
-                    balance(color, nodeVal, newLeft, right)
+                    # Key is smaller, insert into left subtree
+                    newLeft = insertHelper(key, value, left)
+                    balance(color, k, v, newLeft, right) # Balance after insertion
 
                 GT ->
-                    newRight = insertHelper(value, right)
-                    balance(color, nodeVal, left, newRight)
+                    # Key is larger, insert into right subtree
+                    newRight = insertHelper(key, value, right)
+                    balance(color, k, v, left, newRight) # Balance after insertion
 
                 EQ ->
-                    Node({ color, nodeVal, left, right })
+                    # Key already exists, update the value
+                    Node({ color, k, v: value, left, right })
 
-balance : Color, a, RbTreeBase a, RbTreeBase a -> RbTreeBase a where a implements Ord
-balance = |nodeColor, nodeVal, left, right|
-    when (nodeColor, nodeVal, left, right) is
-        # Case 1: Left-Leaning Red Violation (Black grandparent, Red parent, Red child)
-        # Corrected by right rotation and color flips.
-        (Black, z, Node({ color: Red, nodeVal: y, left: Node({ color: Red, nodeVal: x, left: a, right: b }), right: c }), d) ->
-            Node(
-                {
-                    color: Red,
-                    nodeVal: y,
-                    left: Node(
-                        {
-                            color: Black,
-                            nodeVal: x,
-                            left: a,
-                            right: b,
-                        },
-                    ),
-                    right: Node(
-                        {
-                            color: Black,
-                            nodeVal: z,
-                            left: c,
-                            right: d,
-                        },
-                    ),
-                },
-            )
+# Balance the tree according to Red-Black Tree rules after insertion/deletion
+balance : Color, a, b, RbTreeBase a b, RbTreeBase a b -> RbTreeBase a b where a implements Ord & Inspect
+balance = |nodeColor, k, v, left, right|
+    when (nodeColor, k, v, left, right) is
+        # Case 1: Left-leaning Red violation (Black grandparent, Red parent, Red child on left) -> Right Rotation
+        (Black, zk, zv, Node({ color: Red, k: yk, v: yv, left: Node({ color: Red, k: xk, v: xv, left: a, right: b }), right: c }), d) ->
+            Node({ color: Red, k: yk, v: yv, left: Node({ color: Black, k: xk, v: xv, left: a, right: b }), right: Node({ color: Black, k: zk, v: zv, left: c, right: d }) })
 
-        # Case 2: Left-Leaning Red Violation (Inner child is Red)
-        # Corrected by left rotation (at x), then handled like Case 1.
-        (Black, z, Node({ color: Red, nodeVal: x, left: a, right: Node({ color: Red, nodeVal: y, left: b, right: c }) }), d) ->
-            Node(
-                {
-                    color: Red,
-                    nodeVal: y,
-                    left: Node(
-                        {
-                            color: Black,
-                            nodeVal: x,
-                            left: a,
-                            right: b,
-                        },
-                    ),
-                    right: Node(
-                        {
-                            color: Black,
-                            nodeVal: z,
-                            left: c,
-                            right: d,
-                        },
-                    ),
-                },
-            )
+        # Case 2: Left-leaning Red violation (Inner child is Red) -> Left Rotation then Right Rotation
+        (Black, zk, zv, Node({ color: Red, k: xk, v: xv, left: a, right: Node({ color: Red, k: yk, v: yv, left: b, right: c }) }), d) ->
+            Node({ color: Red, k: yk, v: yv, left: Node({ color: Black, k: xk, v: xv, left: a, right: b }), right: Node({ color: Black, k: zk, v: zv, left: c, right: d }) })
 
-        # Case 3: Right-Leaning Red Violation (Black grandparent, Red parent, Red child)
-        # Corrected by left rotation and color flips.
-        (Black, x, a, Node({ color: Red, nodeVal: z, left: b, right: Node({ color: Red, nodeVal: y, left: c, right: d }) })) ->
-            Node({ color: Red, nodeVal: y, left: Node({ color: Black, nodeVal: x, left: a, right: b }), right: Node({ color: Black, nodeVal: z, left: c, right: d }) })
+        # Case 3: Right-leaning Red violation (Black grandparent, Red parent, Red child on right) -> Left Rotation
+        (Black, xk, xv, a, Node({ color: Red, k: yk, v: yv, left: b, right: Node({ color: Red, k: zk, v: zv, left: c, right: d }) })) ->
+            Node({ color: Red, k: yk, v: yv, left: Node({ color: Black, k: xk, v: xv, left: a, right: b }), right: Node({ color: Black, k: zk, v: zv, left: c, right: d }) })
 
-        # Case 4: Right-Leaning Red Violation (Inner child is Red)
-        # Corrected by right rotation (at z), then handled like Case 3.
-        (Black, x, a, Node({ color: Red, nodeVal: y, left: Node({ color: Red, nodeVal: z, left: b, right: c }), right: d })) ->
-            Node({ color: Red, nodeVal: y, left: Node({ color: Black, nodeVal: x, left: a, right: b }), right: Node({ color: Black, nodeVal: z, left: c, right: d }) })
+        # Case 4: Right-leaning Red violation (Inner child is Red) -> Right Rotation then Left Rotation
+        (Black, xk, xv, a, Node({ color: Red, k: zk, v: zv, left: Node({ color: Red, k: yk, v: yv, left: b, right: c }), right: d })) ->
+            Node({ color: Red, k: yk, v: yv, left: Node({ color: Black, k: xk, v: xv, left: a, right: b }), right: Node({ color: Black, k: zk, v: zv, left: c, right: d }) })
 
-        # Case 5: Color Flip - If both children are Red, flip their colors to Black
-        # and the parent's color to Red (unless the parent is the root, handled by `insert`).
-        # This case is implicitly handled by the recursive nature; if insertHelper returns
-        # a Red node into a position where its sibling is also Red, the patterns above
-        # (when called on the grandparent) will trigger the necessary rotations/flips.
-        # Okasaki's algorithm sometimes separates this, but it gets handled.
-        # Default case: No violation detected at this node, just construct the node.
-        _ -> Node({ color: Black, nodeVal, left, right })
+        # Case 5: Color Flip - If both children are Red, flip colors
+        (color, k1, v1, Node({ color: Red, k: lk, v: lv, left: ll, right: lr }), Node({ color: Red, k: rk, v: rv, left: rl, right: rr })) ->
+            Node({ color: Red, k: k1, v: v1, left: Node({ color: Black, k: lk, v: lv, left: ll, right: lr }), right: Node({ color: Black, k: rk, v: rv, left: rl, right: rr }) })
+
+        # Default case: No violation or handled by flips, just construct the node with original color
+        _ -> Node({ color: nodeColor, k, v, left, right })
+
+## Transforms the values in the tree using a provided function.
+map : RbTreeBase a b, (b -> c) -> RbTreeBase a c where a implements Ord & Inspect, c implements Inspect
+map = |tree, fn|
+    when tree is
+        Empty -> Empty
+        Node({ color, k, v, left, right }) ->
+            Node({ color, k, v: fn(v), left: map(left, fn), right: map(right, fn) })
+
+## Walks through the tree in key order, accumulating a state.
+walk : RbTreeBase a b, state, (state, a, b -> state) -> state
+walk = |tree, state, fn|
+    when tree is
+        Empty ->
+            state
+
+        Node({ k, v, left, right }) ->
+            # In-order traversal: Left -> Node -> Right
+            leftState = walk(left, state, fn)
+            nodeState = fn(leftState, k, v)
+            walk(right, nodeState, fn)
+
+## Walks through the tree in key order, accumulating a state until a `Break` is returned.
+walk_until : RbTreeBase a b, state, (state, a, b -> [Continue state, Break state]) -> state
+walk_until = |tree, state, fn|
+    when tree is
+        Empty ->
+            state
+
+        Node({ k, v, left, right }) ->
+            # In-order traversal with early exit
+            leftResult = walk_until(left, state, fn)
+            # Check if the walk should break after processing the left subtree
+            when fn(leftResult, k, v) is
+                Continue(nodeState) -> walk_until(right, nodeState, fn) # Continue to the right
+                Break(finalState) -> finalState # Break early
+
+## Converts the tree into a list of (key, value) pairs, sorted by key.
+to_list : RbTreeBase a b -> List (a, b) where a implements Inspect, b implements Inspect
+to_list = |tree|
+    walk(tree, [], |list, key, value| List.append(list, (key, value)))
+
+## Creates a tree from a list of (key, value) pairs.
+## Note: This performs repeated insertions. For large lists, building from a sorted
+## list would be more efficient but is more complex to implement for RB-Trees.
+from_list : List (a, b) -> RbTreeBase a b where a implements Ord & Inspect
+from_list = |pairs|
+    List.walk(
+        pairs,
+        empty {},
+        |currentTree, (key, value)|
+            insert(key, value, currentTree),
+    )
+
+# --- Expectations for Map Functionality ---
 
 #expect
+#    # Test get on existing keys
 #    myTree =
 #        empty({})
-#        |> insert(10)
-#        |> insert(20)
-#        |> insert(5)
-#        |> insert(15)
-#        |> insert(25)
-#        |> insert(3)
-#        |> insert(7)
+#        |> insert(10, "ten")
+#        |> insert(20, "twenty")
+#        |> insert(5, "five")
+#    get(myTree, 10)
+#    == Ok("ten")
+#    and
+#    get(myTree, 5)
+#    == Ok("five")
+#    and
+#    get(myTree, 20)
+#    == Ok("twenty")
 
-#    (contains(myTree, 15) && !contains(myTree, 100))
+#expect
+#    # Test get on non-existent key
+#    myTree =
+#        empty({})
+#        |> insert(10, "ten")
+#    get(myTree, 100) == Err {}
+
+#expect
+#    # Test updating an existing key
+#    myTree =
+#        empty({})
+#        |> insert(10, "ten")
+#        |> insert(10, "TEN_UPDATED")
+#    get(myTree, 10) == Ok("TEN_UPDATED")
+
+#expect
+#    # Test map function
+#    myTree =
+#        empty({})
+#        |> insert(1, "a")
+#        |> insert(2, "bb")
+#        |> insert(3, "ccc")
+#        |> map(Str.count_utf8_bytes) # Map values to their string length
+#    get(myTree, 1)
+#    == Ok(1)
+#    and
+#    get(myTree, 2)
+#    == Ok(2)
+#    and
+#    get(myTree, 3)
+#    == Ok(3)
+
+#expect
+#    # Test walk function (summing keys)
+#    myTree =
+#        empty({})
+#        |> insert(1, "x")
+#        |> insert(2, "y")
+#        |> insert(3, "z")
+#    sumOfKeys = walk(myTree, 0, |sum, key, _value| sum + key)
+#    sumOfKeys == 6
+
+#expect
+#    # Test walk_until function (stop when key > 2)
+#    myTree =
+#        empty({})
+#        |> insert(1, "x")
+#        |> insert(2, "y")
+#        |> insert(3, "z") # Should stop before processing this
+#        |> insert(4, "w")
+#    walkResult = walk_until(
+#        myTree,
+#        [],
+#        |list, key, val|
+#            if key > 2 then Break(list) else Continue(List.append(list, (key, val))),
+#    )
+#    # Should contain only pairs with keys <= 2
+#    walkResult == [(1, "x"), (2, "y")]
+
+#expect
+#    # Test to_list function (preserves order)
+#    myTree =
+#        empty({})
+#        |> insert(3, "three")
+#        |> insert(1, "one")
+#        |> insert(2, "two")
+#    toListResult = to_list(myTree)
+#    toListResult == [(1, "one"), (2, "two"), (3, "three")]
+
+#expect
+#    # Test from_list and to_list round trip
+#    initialList = [(30, "c"), (10, "a"), (20, "b")]
+#    tree = from_list(initialList)
+#    finalList = to_list(tree)
+#    finalList == [(10, "a"), (20, "b"), (30, "c")] # Check if sorted correctly
+
+#expect
+#    # Test from_list with duplicate keys (last one wins)
+#    initialList = [(10, "a"), (20, "b"), (10, "A_UPDATED")]
+#    tree = from_list(initialList)
+#    finalList = to_list(tree)
+#    finalList == [(10, "A_UPDATED"), (20, "b")]
