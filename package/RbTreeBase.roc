@@ -10,28 +10,20 @@ module [
     from_list, # New
 ]
 
-import Ord exposing [Ord, compare]
-# Add List import for new functions
+import Ord exposing [Ord, compare, Ordering]
 
 Color : [Red, Black]
 
-## A Red-Black Tree storing key-value pairs.
-## The key `a` must implement `Ord`.
 RbTreeBase a b : [
     Empty,
     Node {
             color : Color,
-            # Changed from nodeVal to k and v
             k : a,
             v : b,
             left : RbTreeBase a b,
             right : RbTreeBase a b,
         },
-] where a implements Eq & Ord & Inspect, b implements Eq & Inspect
-    implements [
-        Eq { eq: eq_rb_tree },
-        Inspect { to_inspector: inspect_rb_tree }
-    ]
+] where a implements Ord & Inspect, b implements Inspect
 
 # inspect_rb_tree : RbTreeBase a b -> Inspector f where a implements Inspect, b implements Inspect
 # inspect_rb_tree = |tree| # Basic placeholder - could be more detailed
@@ -57,7 +49,7 @@ get = |tree, key|
 
 ## Inserts a key-value pair into the tree.
 ## If the key already exists, its value is updated.
-insert : a, b, RbTreeBase a b -> RbTreeBase a b where a implements Ord & Inspect
+insert : a, b, RbTreeBase a b -> RbTreeBase a b
 insert = |key, value, tree|
     newTree = insertHelper(key, value, tree)
     # Force root to Black
@@ -66,7 +58,7 @@ insert = |key, value, tree|
         Empty -> Empty # Should only happen if initial tree was Empty and insertHelper returned Empty (which it shouldn't)
 
 # Helper function for recursive insertion
-insertHelper : a, b, RbTreeBase a b -> RbTreeBase a b where a implements Ord & Inspect
+insertHelper : a, b, RbTreeBase a b -> RbTreeBase a b
 insertHelper = |key, value, tree|
     when tree is
         Empty ->
@@ -91,7 +83,7 @@ insertHelper = |key, value, tree|
                     Node({ color, k, v: value, left, right })
 
 # Balance the tree according to Red-Black Tree rules after insertion/deletion
-balance : Color, a, b, RbTreeBase a b, RbTreeBase a b -> RbTreeBase a b where a implements Ord & Inspect
+balance : Color, a, b, RbTreeBase a b, RbTreeBase a b -> RbTreeBase a b
 balance = |nodeColor, k, v, left, right|
     when (nodeColor, k, v, left, right) is
         # Case 1: Left-leaning Red violation (Black grandparent, Red parent, Red child on left) -> Right Rotation
@@ -118,7 +110,7 @@ balance = |nodeColor, k, v, left, right|
         _ -> Node({ color: nodeColor, k, v, left, right })
 
 ## Transforms the values in the tree using a provided function.
-map : RbTreeBase a b, (b -> c) -> RbTreeBase a c where a implements Ord & Inspect, c implements Inspect
+map : RbTreeBase a b, (b -> c) -> RbTreeBase a c
 map = |tree, fn|
     when tree is
         Empty -> Empty
@@ -154,7 +146,7 @@ walk_until = |tree, state, fn|
                 Break(finalState) -> finalState # Break early
 
 ## Converts the tree into a list of (key, value) pairs, sorted by key.
-to_list : RbTreeBase a b -> List (a, b) where a implements Inspect, b implements Inspect
+to_list : RbTreeBase a b -> List (a, b)
 to_list = |tree|
     walk(tree, [], |list, key, value| List.append(list, (key, value)))
 
@@ -172,7 +164,7 @@ from_list = |pairs|
 
 # --- Expectations for Map Functionality ---
 
-#expect
+# expect
 #    # Test get on existing keys
 #    myTree =
 #        empty({})
@@ -188,14 +180,14 @@ from_list = |pairs|
 #    get(myTree, 20)
 #    == Ok("twenty")
 
-#expect
+# expect
 #    # Test get on non-existent key
 #    myTree =
 #        empty({})
 #        |> insert(10, "ten")
 #    get(myTree, 100) == Err {}
 
-#expect
+# expect
 #    # Test updating an existing key
 #    myTree =
 #        empty({})
@@ -203,7 +195,7 @@ from_list = |pairs|
 #        |> insert(10, "TEN_UPDATED")
 #    get(myTree, 10) == Ok("TEN_UPDATED")
 
-#expect
+# expect
 #    # Test map function
 #    myTree =
 #        empty({})
@@ -220,7 +212,7 @@ from_list = |pairs|
 #    get(myTree, 3)
 #    == Ok(3)
 
-#expect
+# expect
 #    # Test walk function (summing keys)
 #    myTree =
 #        empty({})
@@ -230,7 +222,7 @@ from_list = |pairs|
 #    sumOfKeys = walk(myTree, 0, |sum, key, _value| sum + key)
 #    sumOfKeys == 6
 
-#expect
+# expect
 #    # Test walk_until function (stop when key > 2)
 #    myTree =
 #        empty({})
@@ -247,7 +239,7 @@ from_list = |pairs|
 #    # Should contain only pairs with keys <= 2
 #    walkResult == [(1, "x"), (2, "y")]
 
-#expect
+# expect
 #    # Test to_list function (preserves order)
 #    myTree =
 #        empty({})
@@ -257,14 +249,14 @@ from_list = |pairs|
 #    toListResult = to_list(myTree)
 #    toListResult == [(1, "one"), (2, "two"), (3, "three")]
 
-#expect
+# expect
 #    # Test from_list and to_list round trip
 #    initialList = [(30, "c"), (10, "a"), (20, "b")]
 #    tree = from_list(initialList)
 #    finalList = to_list(tree)
 #    finalList == [(10, "a"), (20, "b"), (30, "c")] # Check if sorted correctly
 
-#expect
+# expect
 #    # Test from_list with duplicate keys (last one wins)
 #    initialList = [(10, "a"), (20, "b"), (10, "A_UPDATED")]
 #    tree = from_list(initialList)
