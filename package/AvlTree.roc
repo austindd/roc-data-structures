@@ -15,9 +15,7 @@ import Ord exposing [Ord, Ordering, compare]
 
 AvlTree a b := AvlTreeBase a b where a implements Ord
     implements [
-        Eq {
-            is_eq: avl_tree_eq,
-        },
+        Eq { is_eq: avl_tree_eq },
     ]
 
 avl_tree_eq : AvlTree a b, AvlTree a b -> Bool where a implements Eq & Ord & Inspect, b implements Eq & Inspect

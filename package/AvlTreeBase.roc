@@ -172,25 +172,13 @@ to_list = |avl_tree|
             List.append(list, (key, value)),
     )
 
-Entry a b := (a, b) implements [
-        Ord {
-            compare: entry_compare,
-        },
-    ]
-
-entry_compare : Entry k v, Entry k v -> Ordering where k implements Ord
-entry_compare = |@Entry(a), @Entry(b)|
-    (k1, _) = a
-    (k2, _) = b
-    compare(k1, k2)
-
-entry_compare_2 : (k, v), (k, v) -> Ordering where k implements Ord
-entry_compare_2 = |(a, _), (b, _)|
+entry_compare : (k, v), (k, v) -> Ordering where k implements Ord
+entry_compare = |(a, _), (b, _)|
     compare(a, b)
 
 from_list : List (a, b) -> AvlTreeBase a b where a implements Ord & Inspect
 from_list = |pairs|
-    sorted_pairs = pairs |> List.sort_with(entry_compare_2)
+    sorted_pairs = pairs |> List.sort_with(entry_compare)
     sorted_pairs_length = List.len(sorted_pairs)
     if (sorted_pairs_length < 1) then
         Empty

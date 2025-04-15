@@ -3,4 +3,6 @@ package [
     AvlTreeNum,
     ListMap,
     RbTree,
+    RbTreeBase,
+    RbTreeBase2,
 ] {}
