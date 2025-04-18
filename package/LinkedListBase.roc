@@ -2,9 +2,9 @@ module [
     empty,
     head,
     tail,
-    append,
+    add,
     concat,
-    # set_at,
+    set,
 ]
 
 LinkedListBase a : [
@@ -27,8 +27,8 @@ tail = |linked_list|
         Cons(_, next) -> Ok(next)
         Nil -> Err(EmptyList)
 
-append : LinkedListBase a, a -> LinkedListBase a
-append = |list, element|
+add : LinkedListBase a, a -> LinkedListBase a
+add = |list, element|
     Cons(element, list)
 
 concat : LinkedListBase a, LinkedListBase a -> LinkedListBase a
@@ -37,11 +37,28 @@ concat = |list1, list2|
         Cons(element, next) -> Cons(element, concat(next, list2))
         Nil -> list2
 
-# set_at : LinkedListBase a, Int i, a -> Result (LinkedListBase a) [OutOfBounds]
-# set_at = |list, index, element|
-#    if index == 0 then
-#        Ok(Cons(element, list))
-#    else
-#        when list is
-#            Cons(head, next) -> Ok(Cons(head, set_at(next, index - 1, element)))
-#            Nil -> Err(OutOfBounds)
+set : LinkedListBase a, U64, a -> Result (LinkedListBase a) [OutOfBounds]
+set = |list, index, element|
+    when list is
+        Cons(hd, next) ->
+            if index == 0 then
+                Ok(Cons(element, next))
+            else
+                set(next, index - 1, element)
+
+        Nil -> Err(OutOfBounds)
+
+expect
+    list = empty({})
+        |> add(1)
+        |> add(2)
+        |> add(3)
+
+    new_list = set(list, 0, 42)
+
+    new_list == Ok(
+        empty({})
+            |> add(1)
+            |> add(2)
+            |> add(42)
+        )
