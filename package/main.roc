@@ -5,4 +5,5 @@ package [
     RbTree,
     RbTreeBase,
     LinkedListBase,
+    LinkedList,
 ] {}

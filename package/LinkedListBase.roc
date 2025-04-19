@@ -5,6 +5,7 @@ module [
     add,
     concat,
     set,
+    LinkedListBase,
 ]
 
 LinkedListBase a : [
