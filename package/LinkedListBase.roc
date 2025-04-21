@@ -1,11 +1,13 @@
 module [
+    LinkedListBase,
     empty,
     head,
     tail,
     add,
     concat,
     set,
-    LinkedListBase,
+    get,
+    reverse,
 ]
 
 LinkedListBase a : [
@@ -63,3 +65,49 @@ expect
             |> add(2)
             |> add(42)
         )
+
+get : LinkedListBase a, U64 -> Result a [EmptyList, IndexOutOfBounds]
+get = |list, index|
+    get_inner = |list_, index_|
+        when list_ is
+            Cons(element, next) ->
+                if index_ == 0 then
+                    Ok(element)
+                else
+                    get(next, index_ - 1)
+
+            Nil -> Err(IndexOutOfBounds)
+    get_inner(list, index)
+
+expect
+    list = empty({})
+        |> add(1)
+        |> add(2)
+        |> add(3)
+
+    element = get(list, 1)
+
+    element == Ok(2)
+
+reverse : LinkedListBase a -> LinkedListBase a
+reverse = |list|
+    reverse_inner = |list_, acc|
+        when list_ is
+            Cons(element, next) ->
+                reverse_inner(next, Cons(element, acc))
+
+            Nil -> acc
+    reverse_inner(list, Nil)
+
+expect
+    list = empty({})
+        |> add(1)
+        |> add(2)
+        |> add(3)
+
+    reversed_list = reverse(list)
+
+    reversed_list == empty({})
+        |> add(3)
+        |> add(2)
+        |> add(1)
