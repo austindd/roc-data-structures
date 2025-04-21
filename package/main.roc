@@ -3,7 +3,5 @@ package [
     AvlTreeNum,
     ListMap,
     RbTree,
-    RbTreeBase,
-    LinkedListBase,
     LinkedList,
 ] {}
