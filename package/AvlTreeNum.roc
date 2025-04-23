@@ -1,4 +1,5 @@
 module [
+    AvlTreeNum,
     empty,
     insert,
     get,
