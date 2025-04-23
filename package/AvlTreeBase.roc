@@ -22,7 +22,7 @@ AvlTreeBase a b : [
             l : AvlTreeBase a b,
             k : a,
             v : b,
-            h : U64,
+            h : U8,
             r : AvlTreeBase a b,
         },
     Leaf {
@@ -40,7 +40,7 @@ mknode : AvlTreeBase a b, a, b, AvlTreeBase a b -> AvlTreeBase a b
 mknode = |l, k, v, r|
     Node({ l, k, v, h: 1 + Num.max(height(l), height(r)), r })
 
-height : AvlTreeBase a b -> U64
+height : AvlTreeBase a b -> U8
 height = |avl_tree|
     when avl_tree is
         Empty -> 0
