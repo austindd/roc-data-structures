@@ -43,7 +43,7 @@ concat = |list1, list2|
 set : LinkedListBase a, U64, a -> Result (LinkedListBase a) [OutOfBounds]
 set = |list, index, element|
     when list is
-        Cons(hd, next) ->
+        Cons(_, next) ->
             if index == 0 then
                 Ok(Cons(element, next))
             else

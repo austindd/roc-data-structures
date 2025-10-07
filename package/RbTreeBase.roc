@@ -10,7 +10,7 @@ module [
     from_list, # New
 ]
 
-import Ord exposing [Ord, compare, Ordering]
+import Ord exposing [Ord, compare]
 
 Color : [Red, Black]
 
@@ -103,7 +103,7 @@ balance = |nodeColor, k, v, left, right|
             Node({ color: Red, k: yk, v: yv, left: Node({ color: Black, k: xk, v: xv, left: a, right: b }), right: Node({ color: Black, k: zk, v: zv, left: c, right: d }) })
 
         # Case 5: Color Flip - If both children are Red, flip colors
-        (color, k1, v1, Node({ color: Red, k: lk, v: lv, left: ll, right: lr }), Node({ color: Red, k: rk, v: rv, left: rl, right: rr })) ->
+        (_, k1, v1, Node({ color: Red, k: lk, v: lv, left: ll, right: lr }), Node({ color: Red, k: rk, v: rv, left: rl, right: rr })) ->
             Node({ color: Red, k: k1, v: v1, left: Node({ color: Black, k: lk, v: lv, left: ll, right: lr }), right: Node({ color: Black, k: rk, v: rv, left: rl, right: rr }) })
 
         # Default case: No violation or handled by flips, just construct the node with original color

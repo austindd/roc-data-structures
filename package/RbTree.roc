@@ -12,9 +12,7 @@ module [
 
 # Import the base implementation and necessary abilities/types
 import RbTreeBase exposing [RbTreeBase]
-import Ord exposing [Ord, Ordering, compare] # Ord needed for constraint
-import List # Needed for list operations
-import Inspect exposing [Inspect, Inspector, InspectFormatter] # For Inspect ability
+import Ord exposing [Ord]
 
 ## A Map implemented using a self-balancing Red-Black Tree.
 ## Keys (`k`) must implement the `Ord` ability for comparison and ordering.

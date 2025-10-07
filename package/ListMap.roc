@@ -32,23 +32,6 @@ maybe_compact2 = |list, count|
     else
         list
 
-maybe_compact : ListMap a b -> ListMap a b
-maybe_compact = |@ListMap(list_map)|
-    if list_map.count > 255 then
-        @ListMap(
-            {
-                count: 0,
-                list: List.keep_if(list_map.list, Result.is_ok),
-            },
-        )
-    else
-        @ListMap(
-            {
-                count: list_map.count + 1,
-                list: list_map.list,
-            },
-        )
-
 remove_entry_if_exists2 : List (Result (a, b) {}), a -> List (Result (a, b) {}) where a implements Eq
 remove_entry_if_exists2 = |list, key|
     List.drop_if(
