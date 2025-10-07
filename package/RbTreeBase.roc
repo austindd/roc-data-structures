@@ -10,7 +10,7 @@ module [
     from_list, # New
 ]
 
-import Ord exposing [Ord, compare]
+import Ord exposing [Ord, compare, Ordering]
 
 Color : [Red, Black]
 
@@ -262,3 +262,37 @@ from_list = |pairs|
 #    tree = from_list(initialList)
 #    finalList = to_list(tree)
 #    finalList == [(10, "A_UPDATED"), (20, "b")]
+
+# Tests - using TestKey wrapper since raw numbers don't implement Ord
+
+TestKey := I64 implements [Ord { compare: test_key_compare }, Eq, Inspect]
+
+test_key_compare : TestKey, TestKey -> Ordering
+test_key_compare = |@TestKey(a), @TestKey(b)| Num.compare(a, b)
+
+expect # Empty tree
+    tree = empty({})
+    get(tree, @TestKey(1)) == Err {}
+
+expect # Single insert and get
+    tree = insert(@TestKey(42), "answer", empty({}))
+    get(tree, @TestKey(42)) == Ok("answer")
+
+expect # Multiple inserts and ordered enumeration
+    tree = insert(@TestKey(2), "b", insert(@TestKey(1), "a", insert(@TestKey(3), "c", empty({}))))
+    to_list(tree) == [(@TestKey(1), "a"), (@TestKey(2), "b"), (@TestKey(3), "c")]
+
+expect # from_list creates sorted tree
+    list = [(@TestKey(3), "c"), (@TestKey(1), "a"), (@TestKey(2), "b")]
+    tree = from_list(list)
+    to_list(tree) == [(@TestKey(1), "a"), (@TestKey(2), "b"), (@TestKey(3), "c")]
+
+expect # map transforms values
+    tree = insert(@TestKey(3), 30, insert(@TestKey(2), 20, insert(@TestKey(1), 10, empty({}))))
+    mapped = map(tree, \x -> x * 2)
+    to_list(mapped) == [(@TestKey(1), 20), (@TestKey(2), 40), (@TestKey(3), 60)]
+
+expect # walk accumulates in order
+    tree = insert(@TestKey(2), 20, insert(@TestKey(1), 10, insert(@TestKey(3), 30, empty({}))))
+    sum = walk(tree, 0, |acc, _k, v| acc + v)
+    sum == 60

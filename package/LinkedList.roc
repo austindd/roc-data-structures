@@ -37,3 +37,57 @@ get = |@LinkedList(list), index|
 reverse : LinkedList a -> LinkedList a
 reverse = |@LinkedList(list)|
     @LinkedList(LinkedListBase.reverse(list))
+
+# Tests
+
+expect # Empty list head
+    list = empty({})
+    head(list) == Err(EmptyList)
+
+expect # Empty list tail
+    list = empty({})
+    tail(list) |> Result.is_err
+
+expect # Single element
+    list = empty({}) |> add(42)
+    head(list) == Ok(42)
+
+expect # Multiple elements - LIFO order
+    list = empty({})
+        |> add(1)
+        |> add(2)
+        |> add(3)
+    head(list) == Ok(3)
+
+expect # Tail returns remaining list
+    list = empty({})
+        |> add(1)
+        |> add(2)
+        |> add(3)
+    remaining = tail(list)
+    when remaining is
+        Ok(rest) -> head(rest) == Ok(2)
+        Err(_) -> Bool.false
+
+expect # Get by index
+    list = empty({})
+        |> add(1)
+        |> add(2)
+        |> add(3)
+    get(list, 0) == Ok(3) &&  # Head is index 0
+    get(list, 1) == Ok(2) &&
+    get(list, 2) == Ok(1)
+
+expect # Get out of bounds
+    list = empty({}) |> add(1)
+    get(list, 5) == Err(IndexOutOfBounds)
+
+expect # Reverse list
+    list = empty({})
+        |> add(1)
+        |> add(2)
+        |> add(3)
+    reversed = reverse(list)
+    get(reversed, 0) == Ok(1) &&
+    get(reversed, 1) == Ok(2) &&
+    get(reversed, 2) == Ok(3)

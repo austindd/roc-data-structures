@@ -213,3 +213,154 @@ from_sorted_list = |list|
                         right_node,
                     )
                     node
+
+# Tests - using TestKey wrapper since raw numbers don't implement Ord
+
+TestKey := I64 implements [Ord { compare: test_key_compare }, Eq, Inspect]
+
+test_key_compare : TestKey, TestKey -> Ordering
+test_key_compare = |@TestKey(a), @TestKey(b)| Num.compare(a, b)
+
+expect # Empty tree
+    tree = empty({})
+    get(tree, @TestKey(1)) == Err {}
+
+expect # Single insert and get
+    tree = empty({}) |> insert(@TestKey(42), "answer")
+    get(tree, @TestKey(42)) == Ok("answer")
+
+expect # Get non-existent key
+    tree = empty({}) |> insert(@TestKey(1), "a")
+    get(tree, @TestKey(2)) == Err {}
+
+expect # Update existing key
+    tree = empty({})
+        |> insert(@TestKey(5), "first")
+        |> insert(@TestKey(5), "second")
+    get(tree, @TestKey(5)) == Ok("second")
+
+expect # Multiple inserts in ascending order
+    tree = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(3), "c")
+        |> insert(@TestKey(4), "d")
+        |> insert(@TestKey(5), "e")
+    get(tree, @TestKey(1)) == Ok("a") &&
+    get(tree, @TestKey(3)) == Ok("c") &&
+    get(tree, @TestKey(5)) == Ok("e")
+
+expect # Multiple inserts in descending order
+    tree = empty({})
+        |> insert(@TestKey(5), "e")
+        |> insert(@TestKey(4), "d")
+        |> insert(@TestKey(3), "c")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(1), "a")
+    get(tree, @TestKey(1)) == Ok("a") &&
+    get(tree, @TestKey(3)) == Ok("c") &&
+    get(tree, @TestKey(5)) == Ok("e")
+
+expect # Multiple inserts in random order
+    tree = empty({})
+        |> insert(@TestKey(3), "c")
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(4), "d")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(5), "e")
+    get(tree, @TestKey(1)) == Ok("a") &&
+    get(tree, @TestKey(2)) == Ok("b") &&
+    get(tree, @TestKey(3)) == Ok("c") &&
+    get(tree, @TestKey(4)) == Ok("d") &&
+    get(tree, @TestKey(5)) == Ok("e")
+
+expect # to_list maintains sorted order - ascending inserts
+    tree = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(3), "c")
+    to_list(tree) == [(@TestKey(1), "a"), (@TestKey(2), "b"), (@TestKey(3), "c")]
+
+expect # to_list maintains sorted order - descending inserts
+    tree = empty({})
+        |> insert(@TestKey(3), "c")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(1), "a")
+    to_list(tree) == [(@TestKey(1), "a"), (@TestKey(2), "b"), (@TestKey(3), "c")]
+
+expect # to_list maintains sorted order - random inserts
+    tree = empty({})
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(4), "d")
+        |> insert(@TestKey(3), "c")
+        |> insert(@TestKey(5), "e")
+    to_list(tree) == [(@TestKey(1), "a"), (@TestKey(2), "b"), (@TestKey(3), "c"), (@TestKey(4), "d"), (@TestKey(5), "e")]
+
+expect # from_list creates sorted tree
+    list = [(@TestKey(3), "c"), (@TestKey(1), "a"), (@TestKey(2), "b")]
+    tree = from_list(list)
+    to_list(tree) == [(@TestKey(1), "a"), (@TestKey(2), "b"), (@TestKey(3), "c")]
+
+expect # from_list with duplicates - sorts then builds tree from sorted list
+    list = [(@TestKey(1), "first"), (@TestKey(2), "b"), (@TestKey(1), "second")]
+    tree = from_list(list)
+    # from_list sorts, so both (@TestKey(1), "first") and (@TestKey(1), "second") exist
+    # The tree contains both entries
+    list_result = to_list(tree)
+    List.len(list_result) == 3
+
+expect # map transforms values
+    tree = empty({})
+        |> insert(@TestKey(1), 10)
+        |> insert(@TestKey(2), 20)
+        |> insert(@TestKey(3), 30)
+    mapped = map(tree, \x -> x * 2)
+    to_list(mapped) == [(@TestKey(1), 20), (@TestKey(2), 40), (@TestKey(3), 60)]
+
+expect # walk accumulates in order
+    tree = empty({})
+        |> insert(@TestKey(3), 30)
+        |> insert(@TestKey(1), 10)
+        |> insert(@TestKey(2), 20)
+    sum = walk(tree, 0, |acc, _k, v| acc + v)
+    sum == 60
+
+expect # walk visits keys in sorted order
+    tree = empty({})
+        |> insert(@TestKey(3), "c")
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+    keys = walk(tree, [], |acc, @TestKey(k), _v| List.append(acc, k))
+    keys == [1, 2, 3]
+
+expect # walk_until can break early
+    tree = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(3), "c")
+        |> insert(@TestKey(4), "d")
+        |> insert(@TestKey(5), "e")
+    result = walk_until(tree, [], |acc, @TestKey(k), v|
+        if k > 3 then
+            Break(acc)  # Break without adding current element
+        else
+            Continue(List.append(acc, v))
+    )
+    result == ["a", "b", "c"]
+
+expect # Large tree with many elements
+    tree = List.range({ start: At 1, end: At 100 })
+        |> List.walk(empty({}), |acc, i| insert(acc, @TestKey(i), i * 10))
+    get(tree, @TestKey(1)) == Ok(10) &&
+    get(tree, @TestKey(50)) == Ok(500) &&
+    get(tree, @TestKey(100)) == Ok(1000) &&
+    get(tree, @TestKey(101)) == Err {}
+
+expect # Large tree maintains order
+    tree = List.range({ start: At 1, end: At 50 })
+        |> List.walk(empty({}), |acc, i| insert(acc, @TestKey(i), i))
+    list = to_list(tree)
+    List.len(list) == 50 &&
+    List.first(list) == Ok((@TestKey(1), 1)) &&
+    List.last(list) == Ok((@TestKey(50), 50))

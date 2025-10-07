@@ -115,3 +115,41 @@ map = |@ListMap(list_map), fn|
             ),
         },
     )
+
+# Tests
+
+expect # Insert and get
+    lm = from_list([])
+        |> insert(1, "one")
+        |> insert(2, "two")
+    get(lm, 1) == Ok("one") &&
+    get(lm, 2) == Ok("two")
+
+expect # Get non-existent key
+    lm = from_list([(1, "a")])
+    get(lm, 2) == Err {}
+
+expect # Update existing key
+    lm = from_list([])
+        |> insert(5, "first")
+        |> insert(5, "second")
+    get(lm, 5) == Ok("second")
+
+expect # to_list and from_list
+    list = [(1, "a"), (2, "b"), (3, "c")]
+    lm = from_list(list)
+    result = to_list(lm)
+    # Order may vary since ListMap doesn't guarantee order
+    List.len(result) == 3
+
+expect # map transforms values
+    initial = from_list([(1, 10), (2, 20), (3, 30)])
+    mapped = map(initial, \x -> x * 2)
+    get(mapped, 1) == Ok(20) &&
+    get(mapped, 2) == Ok(40) &&
+    get(mapped, 3) == Ok(60)
+
+expect # walk accumulates
+    initial = from_list([(1, 10), (2, 20), (3, 30)])
+    sum = walk(initial, 0, |acc, _k, v| acc + v)
+    sum == 60

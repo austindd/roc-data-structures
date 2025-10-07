@@ -12,7 +12,7 @@ module [
 
 # Import the base implementation and necessary abilities/types
 import RbTreeBase exposing [RbTreeBase]
-import Ord exposing [Ord]
+import Ord exposing [Ord, Ordering]
 
 ## A Map implemented using a self-balancing Red-Black Tree.
 ## Keys (`k`) must implement the `Ord` ability for comparison and ordering.
@@ -131,3 +131,49 @@ from_list = |list|
 #    # but verifies that `to_list` (used by the inspector) works.
 #    # A manual inspection via `dbg` or `roc repl` would show the list format.
 #    to_list(treeInsp) == [(10, "ten")]
+
+# Tests - using Key wrapper for custom Ord types
+
+Key a := Num a implements [Eq, Ord { compare: key_compare }, Inspect]
+
+key_compare : Key a, Key a -> Ordering
+key_compare = |@Key(a), @Key(b)| Num.compare(a, b)
+
+expect # Empty tree
+    tree : RbTree (Key I64) Str
+    tree = empty({})
+    get(tree, @Key(1)) |> Result.is_err
+
+expect # Insert and get
+    tree = empty({})
+        |> insert(@Key(10), "ten")
+        |> insert(@Key(20), "twenty")
+    get(tree, @Key(10)) == Ok("ten") &&
+    get(tree, @Key(20)) == Ok("twenty")
+
+expect # Ordered enumeration
+    tree = empty({})
+        |> insert(@Key(3), "c")
+        |> insert(@Key(1), "a")
+        |> insert(@Key(2), "b")
+    to_list(tree) == [(@Key(1), "a"), (@Key(2), "b"), (@Key(3), "c")]
+
+expect # Map operation
+    tree = empty({})
+        |> insert(@Key(1), 5)
+        |> insert(@Key(2), 10)
+    mapped = map(tree, \x -> x * 2)
+    to_list(mapped) == [(@Key(1), 10), (@Key(2), 20)]
+
+expect # Walk accumulation
+    tree = empty({})
+        |> insert(@Key(1), 10)
+        |> insert(@Key(2), 20)
+        |> insert(@Key(3), 30)
+    sum = walk(tree, 0, |acc, _k, v| acc + v)
+    sum == 60
+
+expect # Equality
+    tree1 = from_list([(@Key(1), "a"), (@Key(2), "b")])
+    tree2 = from_list([(@Key(2), "b"), (@Key(1), "a")])
+    tree1 == tree2
