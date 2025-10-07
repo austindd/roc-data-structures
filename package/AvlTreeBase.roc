@@ -68,7 +68,7 @@ balance = |avl_tree|
     when avl_tree is
         Empty | Leaf(_) -> avl_tree
         Node(root_node) ->
-            { l, r } = root_node
+            { l, k, v, r } = root_node
             hl = height(l)
             hr = height(r)
             if hl > hr + 2 then
@@ -77,18 +77,26 @@ balance = |avl_tree|
                     Node(l_node) ->
                         { l: l_node_l, r: l_node_r } = l_node
                         if height(l_node_l) >= height(l_node_r) then
+                            # Left-left case: single right rotation
                             rotate_right(avl_tree)
                         else
-                            avl_tree
+                            # Left-right case: rotate left on left child, then right on root
+                            new_left = rotate_left(l)
+                            new_tree = mknode(new_left, k, v, r)
+                            rotate_right(new_tree)
             else if hr > hl + 2 then
                 when r is
                     Empty | Leaf(_) -> crash impossible
                     Node(r_node) ->
                         { l: r_node_l, r: r_node_r } = r_node
                         if height(r_node_r) >= height(r_node_l) then
+                            # Right-right case: single left rotation
                             rotate_left(avl_tree)
                         else
-                            avl_tree
+                            # Right-left case: rotate right on right child, then left on root
+                            new_right = rotate_right(r)
+                            new_tree = mknode(l, k, v, new_right)
+                            rotate_left(new_tree)
             else
                 avl_tree
 
@@ -107,11 +115,11 @@ insert = |avl_tree, key, value|
                 EQ -> mknode(l, k, value, r)
                 LT ->
                     new_left = insert(l, key, value)
-                    mknode(new_left, k, v, r)
+                    balance(mknode(new_left, k, v, r))
 
                 GT ->
                     new_right = insert(r, key, value)
-                    mknode(l, k, v, new_right)
+                    balance(mknode(l, k, v, new_right))
 
 get : AvlTreeBase a b, a -> Result b {}
 get = |avl_tree, key|

@@ -11,7 +11,7 @@ module [
 ]
 
 import AvlTreeBase exposing [AvlTreeBase]
-import Ord exposing [Ord, Ordering, compare]
+import Ord exposing [Ord, Ordering]
 
 AvlTree a b := AvlTreeBase a b where a implements Ord
     implements [

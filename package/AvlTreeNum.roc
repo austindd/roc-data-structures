@@ -5,12 +5,13 @@ module [
     get,
     map,
     walk,
+    walk_until,
     to_list,
     from_list,
 ]
 
 import AvlTreeBase exposing [AvlTreeBase]
-import Ord exposing [Ord, compare, Ordering]
+import Ord exposing [Ord, Ordering]
 
 debug_avltreenum : AvlTreeNum a b -> Inspector _ where a implements Ord & Inspect
 debug_avltreenum = |@AvlTreeNum(value)|
@@ -55,6 +56,14 @@ map = |@AvlTreeNum(tree), fn|
 walk : AvlTreeNum k v, state, (state, Num k, v -> state) -> state
 walk = |@AvlTreeNum(tree), state, fn|
     AvlTreeBase.walk(
+        tree,
+        state,
+        |s, @NumKey(k), v| fn(s, k, v),
+    )
+
+walk_until : AvlTreeNum k v, state, (state, Num k, v -> [Continue state, Break state]) -> state
+walk_until = |@AvlTreeNum(tree), state, fn|
+    AvlTreeBase.walk_until(
         tree,
         state,
         |s, @NumKey(k), v| fn(s, k, v),
