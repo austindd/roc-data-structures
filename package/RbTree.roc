@@ -196,3 +196,147 @@ expect # walk_until can break early
             Continue(acc + v)
     )
     result == 3
+
+expect # Large tree sequential inserts
+    tree = List.range({ start: At 1, end: At 50 })
+        |> List.walk(empty({}), |acc, i| insert(acc, @WrapperTestKey(i), i * 2))
+    get(tree, @WrapperTestKey(1)) == Ok(2) &&
+    get(tree, @WrapperTestKey(25)) == Ok(50) &&
+    get(tree, @WrapperTestKey(50)) == Ok(100)
+
+expect # Descending sequential inserts
+    tree = List.range({ start: At 1, end: At 30 })
+        |> List.reverse
+        |> List.walk(empty({}), |acc, i| insert(acc, @WrapperTestKey(i), Num.to_str(i)))
+    list = to_list(tree)
+    List.len(list) == 30
+
+expect # to_list on empty tree
+    tree : RbTree (WrapperTestKey I64) Str
+    tree = empty({})
+    List.len(to_list(tree)) == 0
+
+expect # from_list on empty list
+    list : List (WrapperTestKey I64, Str)
+    list = []
+    tree = from_list(list)
+    List.len(to_list(tree)) == 0
+
+expect # from_list with single element
+    tree = from_list([(@WrapperTestKey(42), "answer")])
+    get(tree, @WrapperTestKey(42)) == Ok("answer")
+
+expect # Equality of empty trees
+    tree1 : RbTree (WrapperTestKey I64) Str
+    tree1 = empty({})
+    tree2 : RbTree (WrapperTestKey I64) Str
+    tree2 = empty({})
+    tree1 == tree2
+
+expect # Inequality due to different values
+    tree1 = empty({})
+        |> insert(@WrapperTestKey(1), "a")
+        |> insert(@WrapperTestKey(2), "b")
+    tree2 = empty({})
+        |> insert(@WrapperTestKey(1), "x")
+        |> insert(@WrapperTestKey(2), "b")
+    tree1 != tree2
+
+expect # Equality despite insertion order
+    tree1 = empty({})
+        |> insert(@WrapperTestKey(1), "a")
+        |> insert(@WrapperTestKey(2), "b")
+        |> insert(@WrapperTestKey(3), "c")
+    tree2 = empty({})
+        |> insert(@WrapperTestKey(3), "c")
+        |> insert(@WrapperTestKey(1), "a")
+        |> insert(@WrapperTestKey(2), "b")
+    tree1 == tree2
+
+expect # Update key multiple times
+    tree = empty({})
+        |> insert(@WrapperTestKey(5), "first")
+        |> insert(@WrapperTestKey(5), "second")
+        |> insert(@WrapperTestKey(5), "third")
+    get(tree, @WrapperTestKey(5)) == Ok("third") &&
+    List.len(to_list(tree)) == 1
+
+expect # Get non-existent keys
+    tree = empty({})
+        |> insert(@WrapperTestKey(2), "b")
+        |> insert(@WrapperTestKey(4), "d")
+    get(tree, @WrapperTestKey(1)) == Err {} &&
+    get(tree, @WrapperTestKey(3)) == Err {} &&
+    get(tree, @WrapperTestKey(5)) == Err {}
+
+expect # map on empty tree
+    tree : RbTree (WrapperTestKey I64) I64
+    tree = empty({})
+    mapped = map(tree, \x -> x * 2)
+    to_list(mapped) == []
+
+expect # Chained map operations
+    tree = empty({})
+        |> insert(@WrapperTestKey(1), 10)
+        |> insert(@WrapperTestKey(2), 20)
+    result = tree
+        |> map(\x -> x * 2)
+        |> map(\x -> x + 5)
+    get(result, @WrapperTestKey(1)) == Ok(25) &&
+    get(result, @WrapperTestKey(2)) == Ok(45)
+
+expect # walk with string concatenation
+    tree = empty({})
+        |> insert(@WrapperTestKey(3), "c")
+        |> insert(@WrapperTestKey(1), "a")
+        |> insert(@WrapperTestKey(2), "b")
+    result = walk(tree, "", |acc, _k, v| Str.concat(acc, v))
+    result == "abc"
+
+expect # walk_until never breaks
+    tree = empty({})
+        |> insert(@WrapperTestKey(1), 1)
+        |> insert(@WrapperTestKey(2), 2)
+        |> insert(@WrapperTestKey(3), 3)
+    result = walk_until(tree, 0, |acc, _k, v| Continue(acc + v))
+    result == 6
+
+expect # walk_until breaks immediately
+    tree = empty({})
+        |> insert(@WrapperTestKey(1), "a")
+        |> insert(@WrapperTestKey(2), "b")
+    result = walk_until(tree, [], |acc, _k, _v| Break(acc))
+    result == []
+
+expect # Large tree from_list
+    pairs = List.range({ start: At 1, end: At 50 })
+        |> List.map(\i -> (@WrapperTestKey(i), i * 10))
+    tree = from_list(pairs)
+    get(tree, @WrapperTestKey(1)) == Ok(10) &&
+    get(tree, @WrapperTestKey(50)) == Ok(500)
+
+expect # to_list maintains order
+    tree = empty({})
+        |> insert(@WrapperTestKey(5), "e")
+        |> insert(@WrapperTestKey(2), "b")
+        |> insert(@WrapperTestKey(8), "h")
+        |> insert(@WrapperTestKey(1), "a")
+    list = to_list(tree)
+    List.first(list) == Ok((@WrapperTestKey(1), "a")) &&
+    List.last(list) == Ok((@WrapperTestKey(8), "h"))
+
+expect # Zigzag insertion
+    tree = empty({})
+        |> insert(@WrapperTestKey(10), "10")
+        |> insert(@WrapperTestKey(5), "5")
+        |> insert(@WrapperTestKey(15), "15")
+        |> insert(@WrapperTestKey(3), "3")
+        |> insert(@WrapperTestKey(7), "7")
+    List.len(to_list(tree)) == 5 &&
+    get(tree, @WrapperTestKey(3)) == Ok("3")
+
+expect # Large tree walk accumulation
+    tree = List.range({ start: At 1, end: At 100 })
+        |> List.walk(empty({}), |acc, i| insert(acc, @WrapperTestKey(i), i))
+    sum = walk(tree, 0, |acc, _k, v| acc + v)
+    sum == 5050

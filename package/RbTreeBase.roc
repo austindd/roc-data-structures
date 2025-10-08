@@ -296,3 +296,141 @@ expect # walk accumulates in order
     tree = insert(@TestKey(2), 20, insert(@TestKey(1), 10, insert(@TestKey(3), 30, empty({}))))
     sum = walk(tree, 0, |acc, _k, v| acc + v)
     sum == 60
+
+expect # Large tree sequential insertions
+    tree = List.range({ start: At 1, end: At 100 })
+        |> List.walk(empty({}), |acc, i| insert(@TestKey(i), i * 10, acc))
+    get(tree, @TestKey(1)) == Ok(10) &&
+    get(tree, @TestKey(50)) == Ok(500) &&
+    get(tree, @TestKey(100)) == Ok(1000)
+
+expect # Descending insertions
+    tree = List.range({ start: At 1, end: At 30 })
+        |> List.reverse
+        |> List.walk(empty({}), |acc, i| insert(@TestKey(i), i, acc))
+    list = to_list(tree)
+    List.len(list) == 30 &&
+    List.first(list) == Ok((@TestKey(1), 1))
+
+expect # Update same key multiple times
+    tree = insert(@TestKey(5), "c", insert(@TestKey(5), "b", insert(@TestKey(5), "a", empty({}))))
+    get(tree, @TestKey(5)) == Ok("c") &&
+    List.len(to_list(tree)) == 1
+
+expect # Empty tree operations
+    tree : RbTreeBase TestKey Str
+    tree = empty({})
+    to_list(tree) == [] &&
+    get(tree, @TestKey(1)) == Err {}
+
+expect # Single element operations
+    tree = insert(@TestKey(42), "answer", empty({}))
+    to_list(tree) == [(@TestKey(42), "answer")] &&
+    get(tree, @TestKey(42)) == Ok("answer")
+
+expect # walk_until breaks early
+    tree = insert(@TestKey(4), "d", insert(@TestKey(3), "c", insert(@TestKey(2), "b", insert(@TestKey(1), "a", empty({})))))
+    result = walk_until(tree, [], |acc, _k, v|
+        if v == "c" then
+            Break(acc)
+        else
+            Continue(List.append(acc, v))
+    )
+    result == ["a", "b"]
+
+expect # walk_until never breaks
+    tree = insert(@TestKey(3), 3, insert(@TestKey(2), 2, insert(@TestKey(1), 1, empty({}))))
+    result = walk_until(tree, 0, |acc, _k, v| Continue(acc + v))
+    result == 6
+
+expect # walk_until on empty tree
+    tree : RbTreeBase TestKey Str
+    tree = empty({})
+    result = walk_until(tree, 100, |acc, _k, _v| Continue(acc + 1))
+    result == 100
+
+expect # map on empty tree
+    tree : RbTreeBase TestKey I64
+    tree = empty({})
+    mapped = map(tree, \x -> x * 2)
+    to_list(mapped) == []
+
+expect # from_list with empty list
+    list : List (TestKey, Str)
+    list = []
+    tree = from_list(list)
+    to_list(tree) == []
+
+expect # from_list with single element
+    tree = from_list([(@TestKey(1), "one")])
+    get(tree, @TestKey(1)) == Ok("one")
+
+expect # Get non-existent keys
+    tree = insert(@TestKey(6), "f", insert(@TestKey(4), "d", insert(@TestKey(2), "b", empty({}))))
+    get(tree, @TestKey(1)) == Err {} &&
+    get(tree, @TestKey(3)) == Err {} &&
+    get(tree, @TestKey(5)) == Err {} &&
+    get(tree, @TestKey(7)) == Err {}
+
+expect # Zigzag insertion pattern
+    tree = insert(@TestKey(17), "17",
+           insert(@TestKey(12), "12",
+           insert(@TestKey(7), "7",
+           insert(@TestKey(3), "3",
+           insert(@TestKey(15), "15",
+           insert(@TestKey(5), "5",
+           insert(@TestKey(10), "10", empty({}))))))))
+    List.len(to_list(tree)) == 7 &&
+    get(tree, @TestKey(3)) == Ok("3") &&
+    get(tree, @TestKey(17)) == Ok("17")
+
+expect # Large tree walk accumulation
+    tree = List.range({ start: At 1, end: At 100 })
+        |> List.walk(empty({}), |acc, i| insert(@TestKey(i), i, acc))
+    sum = walk(tree, 0, |acc, _k, v| acc + v)
+    sum == 5050
+
+expect # from_list maintains order
+    list = [(@TestKey(5), "e"), (@TestKey(1), "a"), (@TestKey(3), "c"), (@TestKey(2), "b"), (@TestKey(4), "d")]
+    tree = from_list(list)
+    result = to_list(tree)
+    List.len(result) == 5 &&
+    List.first(result) == Ok((@TestKey(1), "a")) &&
+    List.last(result) == Ok((@TestKey(5), "e"))
+
+expect # walk with string concatenation
+    tree = insert(@TestKey(4), "d", insert(@TestKey(2), "b", insert(@TestKey(1), "a", insert(@TestKey(3), "c", empty({})))))
+    result = walk(tree, "", |acc, _k, v| Str.concat(acc, v))
+    result == "abcd"
+
+expect # map maintains structure
+    tree = insert(@TestKey(3), 30, insert(@TestKey(2), 20, insert(@TestKey(1), 10, empty({}))))
+    mapped1 = map(tree, \x -> x * 2)
+    mapped2 = map(mapped1, \x -> x + 5)
+    get(mapped2, @TestKey(1)) == Ok(25) &&
+    get(mapped2, @TestKey(2)) == Ok(45) &&
+    get(mapped2, @TestKey(3)) == Ok(65)
+
+expect # walk with key access
+    tree = insert(@TestKey(3), "c", insert(@TestKey(2), "b", insert(@TestKey(1), "a", empty({}))))
+    keys = walk(tree, [], |acc, @TestKey(k), _v| List.append(acc, k))
+    keys == [1, 2, 3]
+
+expect # Interleaved middle-out insertions
+    tree = insert(@TestKey(87), "87",
+           insert(@TestKey(62), "62",
+           insert(@TestKey(37), "37",
+           insert(@TestKey(12), "12",
+           insert(@TestKey(75), "75",
+           insert(@TestKey(25), "25",
+           insert(@TestKey(50), "50", empty({}))))))))
+    list = to_list(tree)
+    List.len(list) == 7
+
+expect # from_list with duplicates
+    list = [(@TestKey(1), "first"), (@TestKey(2), "b"), (@TestKey(1), "second")]
+    tree = from_list(list)
+    # Last value wins for duplicates via insert
+    result = to_list(tree)
+    List.len(result) == 2 &&  # Only 2 unique keys
+    get(tree, @TestKey(1)) == Ok("second")  # Last value wins

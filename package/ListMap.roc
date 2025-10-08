@@ -153,3 +153,139 @@ expect # walk accumulates
     initial = from_list([(1, 10), (2, 20), (3, 30)])
     sum = walk(initial, 0, |acc, _k, v| acc + v)
     sum == 60
+
+expect # Empty map operations
+    lm = from_list([])
+    get(lm, 1) == Err {} &&
+    to_list(lm) == []
+
+expect # Single element operations
+    lm = from_list([(42, "answer")])
+    get(lm, 42) == Ok("answer") &&
+    List.len(to_list(lm)) == 1
+
+expect # Update same key many times
+    lm = from_list([])
+        |> insert(1, "a")
+        |> insert(1, "b")
+        |> insert(1, "c")
+        |> insert(1, "d")
+        |> insert(1, "e")
+    get(lm, 1) == Ok("e")
+
+expect # Many unique keys
+    lm = List.range({ start: At 1, end: At 50 })
+        |> List.walk(from_list([]), |acc, i| insert(acc, i, i * 10))
+    get(lm, 1) == Ok(10) &&
+    get(lm, 25) == Ok(250) &&
+    get(lm, 50) == Ok(500)
+
+expect # Update many keys multiple times
+    lm = from_list([])
+        |> insert(1, "a")
+        |> insert(2, "b")
+        |> insert(3, "c")
+        |> insert(1, "A")
+        |> insert(2, "B")
+        |> insert(3, "C")
+    get(lm, 1) == Ok("A") &&
+    get(lm, 2) == Ok("B") &&
+    get(lm, 3) == Ok("C")
+
+expect # to_list with multiple elements
+    lm = from_list([(1, "a"), (2, "b"), (3, "c")])
+    result = to_list(lm)
+    List.len(result) == 3
+
+expect # from_list with duplicates
+    lm = from_list([(1, "first"), (2, "b"), (1, "second")])
+    # from_list doesn't deduplicate, both entries are stored
+    result = to_list(lm)
+    List.len(result) == 3
+
+expect # map on empty map
+    lm = from_list([])
+    mapped = map(lm, \x -> x * 2)
+    to_list(mapped) == []
+
+expect # map changes value types
+    lm = from_list([(1, "a"), (2, "bb"), (3, "ccc")])
+    lengths = map(lm, Str.count_utf8_bytes)
+    get(lengths, 1) == Ok(1) &&
+    get(lengths, 2) == Ok(2) &&
+    get(lengths, 3) == Ok(3)
+
+expect # walk on empty map
+    lm = from_list([])
+    result = walk(lm, 0, |acc, _k, _v| acc + 1)
+    result == 0
+
+expect # walk counts elements
+    lm = from_list([(1, "a"), (2, "b"), (3, "c"), (4, "d")])
+    count = walk(lm, 0, |acc, _k, _v| acc + 1)
+    count == 4
+
+expect # Get non-existent keys
+    lm = from_list([(1, "a"), (3, "c"), (5, "e")])
+    get(lm, 2) == Err {} &&
+    get(lm, 4) == Err {} &&
+    get(lm, 6) == Err {}
+
+expect # Large map with many updates
+    lm = List.range({ start: At 1, end: At 100 })
+        |> List.walk(from_list([]), |acc, i| insert(acc, i, i))
+    # Update every key
+    lm2 = List.range({ start: At 1, end: At 100 })
+        |> List.walk(lm, |acc, i| insert(acc, i, i * 2))
+    get(lm2, 50) == Ok(100)
+
+expect # Stress test with many inserts
+    lm = List.range({ start: At 1, end: At 300 })
+        |> List.walk(from_list([]), |acc, i| insert(acc, i, Num.to_str(i)))
+    get(lm, 1) == Ok("1") &&
+    get(lm, 150) == Ok("150") &&
+    get(lm, 300) == Ok("300")
+
+expect # Map after many operations
+    lm = from_list([])
+        |> insert(1, 10)
+        |> insert(2, 20)
+        |> insert(3, 30)
+        |> insert(1, 15)  # Update
+        |> insert(2, 25)  # Update
+    doubled = map(lm, \x -> x * 2)
+    get(doubled, 1) == Ok(30) &&
+    get(doubled, 2) == Ok(50)
+
+expect # walk accumulates keys
+    lm = from_list([(1, "a"), (2, "b"), (3, "c")])
+    key_sum = walk(lm, 0, |acc, k, _v| acc + k)
+    key_sum == 6
+
+expect # to_list returns all elements
+    lm = from_list([(5, "e"), (3, "c"), (1, "a"), (4, "d"), (2, "b")])
+    result = to_list(lm)
+    List.len(result) == 5
+
+expect # Chained map operations
+    lm = from_list([(1, 5), (2, 10)])
+    result = lm
+        |> map(\x -> x * 2)
+        |> map(\x -> x + 1)
+    get(result, 1) == Ok(11) &&
+    get(result, 2) == Ok(21)
+
+expect # Insert then walk
+    lm = from_list([])
+        |> insert(10, "ten")
+        |> insert(20, "twenty")
+        |> insert(30, "thirty")
+    concat = walk(lm, "", |acc, _k, v| Str.concat(acc, v))
+    Str.count_utf8_bytes(concat) > 0  # Has content
+
+expect # Update overwrites previous value
+    lm = from_list([(1, "first")])
+        |> insert(1, "second")
+        |> insert(1, "third")
+    list = to_list(lm)
+    List.len(list) == 1  # Only one entry

@@ -121,6 +121,136 @@ expect # Equality works correctly
         |> insert(@Key(2), "b")
     tree1 == tree2 && tree1 != tree3
 
+expect # Empty tree equality
+    tree1 : AvlTree (Key I64) Str
+    tree1 = empty({})
+    tree2 : AvlTree (Key I64) Str
+    tree2 = empty({})
+    tree1 == tree2
+
+expect # Large tree equality with same elements
+    list = List.range({ start: At 1, end: At 30 })
+        |> List.map(\i -> (@Key(i), i * 10))
+    tree1 = from_list(list)
+    tree2 = List.reverse(list) |> from_list
+    tree1 == tree2
+
+expect # Inequality due to missing element
+    tree1 = empty({})
+        |> insert(@Key(1), "a")
+        |> insert(@Key(2), "b")
+        |> insert(@Key(3), "c")
+    tree2 = empty({})
+        |> insert(@Key(1), "a")
+        |> insert(@Key(2), "b")
+    tree1 != tree2
+
+expect # Large tree from_list
+    list = List.range({ start: At 1, end: At 50 })
+        |> List.map(\i -> (@Key(i), Num.to_str(i)))
+    tree = from_list(list)
+    get(tree, @Key(1)) == Ok("1") &&
+    get(tree, @Key(25)) == Ok("25") &&
+    get(tree, @Key(50)) == Ok("50")
+
+expect # Chained map operations
+    tree = empty({})
+        |> insert(@Key(1), 5)
+        |> insert(@Key(2), 10)
+        |> insert(@Key(3), 15)
+    result = tree
+        |> map(\x -> x * 2)
+        |> map(\x -> x + 1)
+        |> map(\x -> x / 2)
+    get(result, @Key(1)) == Ok(5) &&
+    get(result, @Key(2)) == Ok(10) &&
+    get(result, @Key(3)) == Ok(15)
+
+expect # walk_until breaks immediately
+    tree = empty({})
+        |> insert(@Key(1), "a")
+        |> insert(@Key(2), "b")
+    result = walk_until(tree, [], |acc, _k, _v| Break(acc))
+    result == []
+
+expect # walk_until accumulates all elements
+    tree = empty({})
+        |> insert(@Key(1), 1)
+        |> insert(@Key(2), 2)
+        |> insert(@Key(3), 3)
+        |> insert(@Key(4), 4)
+    result = walk_until(tree, 0, |acc, _k, v| Continue(acc + v))
+    result == 10
+
+expect # to_list on empty tree
+    tree : AvlTree (Key I64) Str
+    tree = empty({})
+    to_list(tree) == []
+
+expect # to_list on single element
+    tree = empty({}) |> insert(@Key(42), "answer")
+    to_list(tree) == [(@Key(42), "answer")]
+
+expect # from_list with single element
+    tree = from_list([(@Key(1), "one")])
+    get(tree, @Key(1)) == Ok("one")
+
+expect # Sequential inserts ascending order
+    tree = empty({})
+        |> insert(@Key(1), 1)
+        |> insert(@Key(2), 2)
+        |> insert(@Key(3), 3)
+        |> insert(@Key(4), 4)
+        |> insert(@Key(5), 5)
+    List.len(to_list(tree)) == 5
+
+expect # Sequential inserts descending order
+    tree = empty({})
+        |> insert(@Key(5), 5)
+        |> insert(@Key(4), 4)
+        |> insert(@Key(3), 3)
+        |> insert(@Key(2), 2)
+        |> insert(@Key(1), 1)
+    List.len(to_list(tree)) == 5
+
+expect # Update value multiple times
+    tree = empty({})
+        |> insert(@Key(1), "first")
+        |> insert(@Key(1), "second")
+        |> insert(@Key(1), "third")
+    get(tree, @Key(1)) == Ok("third") &&
+    List.len(to_list(tree)) == 1
+
+expect # walk preserves order
+    tree = empty({})
+        |> insert(@Key(3), "c")
+        |> insert(@Key(1), "a")
+        |> insert(@Key(2), "b")
+    result = walk(tree, "", |acc, _k, v| Str.concat(acc, v))
+    result == "abc"
+
+expect # map on empty tree
+    tree : AvlTree (Key I64) I64
+    tree = empty({})
+    mapped = map(tree, \x -> x * 2)
+    to_list(mapped) == []
+
+expect # Large tree walk
+    tree = List.range({ start: At 1, end: At 100 })
+        |> List.walk(empty({}), |acc, i| insert(acc, @Key(i), i))
+    sum = walk(tree, 0, |acc, _k, v| acc + v)
+    sum == 5050
+
+expect # Mixed value types after map
+    tree = empty({})
+        |> insert(@Key(1), "a")
+        |> insert(@Key(2), "bb")
+        |> insert(@Key(3), "ccc")
+    lengths = map(tree, Str.count_utf8_bytes)
+    get(lengths, @Key(1)) == Ok(1) &&
+    get(lengths, @Key(2)) == Ok(2) &&
+    get(lengths, @Key(3)) == Ok(3)
+
 empty : {} -> AvlTree a b
 empty = |{}| AvlTreeBase.empty({}) |> @AvlTree
 

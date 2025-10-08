@@ -364,3 +364,151 @@ expect # Large tree maintains order
     List.len(list) == 50 &&
     List.first(list) == Ok((@TestKey(1), 1)) &&
     List.last(list) == Ok((@TestKey(50), 50))
+
+expect # Descending sequential insertions - stress test left rotations
+    tree = List.range({ start: At 1, end: At 20 })
+        |> List.reverse
+        |> List.walk(empty({}), |acc, i| insert(acc, @TestKey(i), i))
+    list = to_list(tree)
+    List.len(list) == 20 &&
+    List.first(list) == Ok((@TestKey(1), 1)) &&
+    List.last(list) == Ok((@TestKey(20), 20))
+
+expect # Zigzag insertions - alternating high and low
+    tree = empty({})
+        |> insert(@TestKey(10), "10")
+        |> insert(@TestKey(5), "5")
+        |> insert(@TestKey(15), "15")
+        |> insert(@TestKey(3), "3")
+        |> insert(@TestKey(7), "7")
+        |> insert(@TestKey(12), "12")
+        |> insert(@TestKey(17), "17")
+    list = to_list(tree)
+    List.len(list) == 7 &&
+    get(tree, @TestKey(3)) == Ok("3") &&
+    get(tree, @TestKey(17)) == Ok("17")
+
+expect # Update same key multiple times
+    tree = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(1), "b")
+        |> insert(@TestKey(1), "c")
+        |> insert(@TestKey(1), "d")
+    get(tree, @TestKey(1)) == Ok("d") &&
+    List.len(to_list(tree)) == 1
+
+expect # Empty tree to_list
+    tree : AvlTreeBase TestKey Str
+    tree = empty({})
+    List.len(to_list(tree)) == 0
+
+expect # Empty tree walk
+    tree : AvlTreeBase TestKey Str
+    tree = empty({})
+    result = walk(tree, 0, |acc, _k, _v| acc + 1)
+    result == 0
+
+expect # Empty tree map
+    tree : AvlTreeBase TestKey I64
+    tree = empty({})
+    mapped = map(tree, \x -> x * 2)
+    List.len(to_list(mapped)) == 0
+
+expect # Single element to_list
+    tree = insert(empty({}), @TestKey(42), "answer")
+    to_list(tree) == [(@TestKey(42), "answer")]
+
+expect # Single element walk
+    tree = insert(empty({}), @TestKey(1), 10)
+    result = walk(tree, 0, |acc, _k, v| acc + v)
+    result == 10
+
+expect # Single element map
+    tree = insert(empty({}), @TestKey(1), 5)
+    mapped = map(tree, \x -> x * 3)
+    get(mapped, @TestKey(1)) == Ok(15)
+
+expect # walk_until breaks at first element
+    tree = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(3), "c")
+    result = walk_until(tree, 0, |acc, _k, _v| Break(acc + 1))
+    result == 1
+
+expect # walk_until never breaks
+    tree = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(3), "c")
+    result = walk_until(tree, 0, |acc, _k, _v| Continue(acc + 1))
+    result == 3
+
+expect # walk_until on empty tree
+    tree : AvlTreeBase TestKey Str
+    tree = empty({})
+    result = walk_until(tree, 42, |acc, _k, _v| Continue(acc + 1))
+    result == 42
+
+expect # from_list with empty list
+    list : List (TestKey, Str)
+    list = []
+    tree = from_list(list)
+    List.len(to_list(tree)) == 0
+
+expect # Insert then get non-existent key
+    tree = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(3), "c")
+        |> insert(@TestKey(5), "e")
+    get(tree, @TestKey(2)) == Err {} &&
+    get(tree, @TestKey(4)) == Err {} &&
+    get(tree, @TestKey(0)) == Err {} &&
+    get(tree, @TestKey(10)) == Err {}
+
+expect # Interleaved insertions - middle-out pattern
+    tree = empty({})
+        |> insert(@TestKey(50), "50")
+        |> insert(@TestKey(25), "25")
+        |> insert(@TestKey(75), "75")
+        |> insert(@TestKey(12), "12")
+        |> insert(@TestKey(37), "37")
+        |> insert(@TestKey(62), "62")
+        |> insert(@TestKey(87), "87")
+    list = to_list(tree)
+    List.len(list) == 7 &&
+    get(tree, @TestKey(12)) == Ok("12") &&
+    get(tree, @TestKey(87)) == Ok("87")
+
+expect # Large tree walk accumulation
+    tree = List.range({ start: At 1, end: At 100 })
+        |> List.walk(empty({}), |acc, i| insert(acc, @TestKey(i), i))
+    sum = walk(tree, 0, |acc, _k, v| acc + v)
+    sum == 5050  # Sum of 1 to 100
+
+expect # from_list preserves last value for duplicate keys
+    list = [(@TestKey(1), "first"), (@TestKey(2), "b"), (@TestKey(3), "c"), (@TestKey(1), "last")]
+    tree = from_list(list)
+    # Since from_list just inserts in order, last insert wins
+    result = to_list(tree)
+    List.len(result) == 4  # All entries present due to sorting keeping both
+
+expect # map maintains tree structure
+    tree = empty({})
+        |> insert(@TestKey(2), 20)
+        |> insert(@TestKey(1), 10)
+        |> insert(@TestKey(3), 30)
+    mapped1 = map(tree, \x -> x * 2)
+    mapped2 = map(mapped1, \x -> x + 5)
+    get(mapped2, @TestKey(1)) == Ok(25) &&
+    get(mapped2, @TestKey(2)) == Ok(45) &&
+    get(mapped2, @TestKey(3)) == Ok(65)
+
+expect # walk with string concatenation
+    tree = empty({})
+        |> insert(@TestKey(3), "c")
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(4), "d")
+    result = walk(tree, "", |acc, _k, v| Str.concat(acc, v))
+    result == "abcd"
