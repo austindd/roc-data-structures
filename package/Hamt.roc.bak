@@ -1,0 +1,248 @@
+module [
+    Hamt,
+    empty,
+    insert,
+    get,
+    remove,
+    map,
+    walk,
+    walk_until,
+    to_list,
+    from_list,
+    is_empty,
+    len,
+]
+
+import HamtBase exposing [HamtBase]
+import Hash exposing [Hashable]
+
+## A persistent hash map implemented using a Hash Array Mapped Trie (HAMT).
+## Keys must implement both `Hashable` and `Eq` abilities.
+##
+## HAMTs provide O(log₃₂ n) performance for lookups, insertions, and deletions,
+## with very good practical performance due to the wide branching factor (32).
+Hamt k v := HamtBase k v where k implements Hashable & Eq
+    implements [
+        Eq { is_eq: hamt_eq },
+    ]
+
+hamt_eq : Hamt k v, Hamt k v -> Bool where k implements Hashable & Eq & Inspect, v implements Eq & Inspect
+hamt_eq = |@Hamt(hamt_a), @Hamt(hamt_b)|
+    # Two HAMTs are equal if they contain the same key-value pairs
+    # We compare by converting to sorted lists
+    list_a = HamtBase.to_list(hamt_a) |> List.sort_with(\(k1, _), (k2, _) ->
+        h1 = Hashable.to_hash(k1)
+        h2 = Hashable.to_hash(k2)
+        Num.compare(h1, h2)
+    )
+    list_b = HamtBase.to_list(hamt_b) |> List.sort_with(\(k1, _), (k2, _) ->
+        h1 = Hashable.to_hash(k1)
+        h2 = Hashable.to_hash(k2)
+        Num.compare(h1, h2)
+    )
+    list_a == list_b
+
+## Creates an empty HAMT.
+empty : {} -> Hamt k v
+empty = |{}|
+    HamtBase.empty {} |> @Hamt
+
+## Checks if the HAMT is empty.
+is_empty : Hamt k v -> Bool
+is_empty = |@Hamt(hamt)|
+    HamtBase.is_empty(hamt)
+
+## Inserts a key-value pair into the HAMT.
+## If the key already exists, its value is updated.
+insert : Hamt k v, k, v -> Hamt k v
+insert = |@Hamt(hamt), key, value|
+    HamtBase.insert(key, value, hamt) |> @Hamt
+
+## Retrieves the value associated with a key.
+## Returns `Ok value` if found, `Err {}` otherwise.
+get : Hamt k v, k -> Result v {}
+get = |@Hamt(hamt), key|
+    HamtBase.get(hamt, key)
+
+## Removes a key-value pair from the HAMT.
+## Returns a new HAMT without the key. If the key doesn't exist, returns the original HAMT.
+remove : Hamt k v, k -> Hamt k v
+remove = |@Hamt(hamt), key|
+    HamtBase.remove(hamt, key) |> @Hamt
+
+## Transforms all values in the HAMT using the given function.
+## Keys remain unchanged.
+map : Hamt k v, (v -> w) -> Hamt k w
+map = |@Hamt(hamt), fn|
+    HamtBase.map(hamt, fn) |> @Hamt
+
+## Iterates over all key-value pairs, accumulating a state.
+## The order of iteration is not guaranteed.
+walk : Hamt k v, state, (state, k, v -> state) -> state
+walk = |@Hamt(hamt), state, fn|
+    HamtBase.walk(hamt, state, fn)
+
+## Iterates over all key-value pairs with early termination support.
+## The order of iteration is not guaranteed.
+walk_until : Hamt k v, state, (state, k, v -> [Continue state, Break state]) -> state
+walk_until = |@Hamt(hamt), state, fn|
+    HamtBase.walk_until(hamt, state, fn)
+
+## Converts the HAMT to a list of key-value pairs.
+## The order is not guaranteed.
+to_list : Hamt k v -> List (k, v)
+to_list = |@Hamt(hamt)|
+    HamtBase.to_list(hamt)
+
+## Creates a HAMT from a list of key-value pairs.
+## If there are duplicate keys, the last value wins.
+from_list : List (k, v) -> Hamt k v where k implements Hashable & Eq
+from_list = |list|
+    HamtBase.from_list(list) |> @Hamt
+
+## Returns the number of key-value pairs in the HAMT.
+len : Hamt k v -> U64
+len = |@Hamt(hamt)|
+    HamtBase.len(hamt)
+
+# Test helper - Key type for testing
+TestKey := I64 implements [
+        Hashable { to_hash: test_key_hash },
+        Eq,
+        Inspect,
+    ]
+
+test_key_hash : TestKey -> U64
+test_key_hash = |@TestKey(n)|
+    # Simple hash function for testing
+    Num.to_u64(Num.abs(n))
+
+expect # Empty HAMT
+    hamt = empty({})
+    is_empty(hamt)
+
+expect # Single insert and get
+    hamt = empty({})
+        |> insert(@TestKey(42), "answer")
+    get(hamt, @TestKey(42)) == Ok("answer")
+
+expect # Get non-existent key
+    hamt = empty({})
+        |> insert(@TestKey(1), "a")
+    get(hamt, @TestKey(2)) == Err {}
+
+expect # Update existing key
+    hamt = empty({})
+        |> insert(@TestKey(5), "first")
+        |> insert(@TestKey(5), "second")
+    get(hamt, @TestKey(5)) == Ok("second")
+
+expect # Multiple inserts
+    hamt = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(3), "c")
+    get(hamt, @TestKey(1)) == Ok("a") &&
+    get(hamt, @TestKey(2)) == Ok("b") &&
+    get(hamt, @TestKey(3)) == Ok("c")
+
+expect # Remove key
+    hamt = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+        |> remove(@TestKey(1))
+    get(hamt, @TestKey(1)) == Err {} &&
+    get(hamt, @TestKey(2)) == Ok("b")
+
+expect # Remove non-existent key
+    hamt = empty({})
+        |> insert(@TestKey(1), "a")
+        |> remove(@TestKey(2))
+    get(hamt, @TestKey(1)) == Ok("a")
+
+expect # Map transforms values
+    hamt = empty({})
+        |> insert(@TestKey(1), 5)
+        |> insert(@TestKey(2), 10)
+    mapped = map(hamt, \x -> x * 2)
+    get(mapped, @TestKey(1)) == Ok(10) &&
+    get(mapped, @TestKey(2)) == Ok(20)
+
+expect # Walk accumulates
+    hamt = empty({})
+        |> insert(@TestKey(1), 10)
+        |> insert(@TestKey(2), 20)
+        |> insert(@TestKey(3), 30)
+    sum = walk(hamt, 0, |acc, _k, v| acc + v)
+    sum == 60
+
+expect # walk_until can break early
+    hamt = empty({})
+        |> insert(@TestKey(1), 1)
+        |> insert(@TestKey(2), 2)
+        |> insert(@TestKey(3), 3)
+    # Find first value > 1 (order not guaranteed, so just check we get a valid result)
+    result = walk_until(hamt, 0, |acc, _k, v|
+        if v > 1 && acc == 0 then
+            Break(v)
+        else
+            Continue(acc)
+    )
+    result > 0
+
+expect # to_list returns all entries
+    hamt = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+    list = to_list(hamt)
+    List.len(list) == 2
+
+expect # from_list creates HAMT
+    list = [(@TestKey(1), "a"), (@TestKey(2), "b"), (@TestKey(3), "c")]
+    hamt = from_list(list)
+    get(hamt, @TestKey(1)) == Ok("a") &&
+    get(hamt, @TestKey(2)) == Ok("b") &&
+    get(hamt, @TestKey(3)) == Ok("c")
+
+expect # len counts entries
+    hamt = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(3), "c")
+    len(hamt) == 3
+
+expect # len after remove
+    hamt = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+        |> remove(@TestKey(1))
+    len(hamt) == 1
+
+expect # Large HAMT
+    hamt = List.range({ start: At 1, end: At 100 })
+        |> List.walk(empty({}), |acc, i| insert(acc, @TestKey(i), i * 2))
+    get(hamt, @TestKey(1)) == Ok(2) &&
+    get(hamt, @TestKey(50)) == Ok(100) &&
+    get(hamt, @TestKey(100)) == Ok(200) &&
+    len(hamt) == 100
+
+expect # Equality of empty HAMTs
+    hamt1 = empty({})
+    hamt2 = empty({})
+    hamt1 == hamt2
+
+expect # Equality with same content
+    hamt1 = empty({})
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+    hamt2 = empty({})
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(1), "a")
+    hamt1 == hamt2
+
+expect # Inequality with different values
+    hamt1 = empty({})
+        |> insert(@TestKey(1), "a")
+    hamt2 = empty({})
+        |> insert(@TestKey(1), "b")
+    hamt1 != hamt2
