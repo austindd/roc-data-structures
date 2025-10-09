@@ -4,4 +4,5 @@ package [
     ListMap,
     RbTree,
     LinkedList,
+    HashMap,
 ] {}

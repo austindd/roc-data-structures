@@ -1,0 +1,6 @@
+module [Hashable]
+
+## The `Hashable` ability allows types to provide a hash value for use in hash-based data structures.
+## Types that implement `Hashable` can be used as keys in hash maps and sets.
+Hashable implements
+    to_hash : a -> U64 where a implements Hashable

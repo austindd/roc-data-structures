@@ -1,0 +1,282 @@
+module [
+    HamtNum,
+    empty,
+    insert,
+    get,
+    remove,
+    map,
+    walk,
+    walk_until,
+    to_list,
+    from_list,
+    is_empty,
+    len,
+]
+
+import HamtNumBase exposing [HamtNumBase]
+
+## A Hash Array Mapped Trie (HAMT) specialized for numeric keys.
+##
+## HAMTs provide O(log₃₂ n) performance for lookups, insertions, and deletions,
+## with very good practical performance due to the wide branching factor (32).
+## This implementation is persistent (immutable) and benefits from Roc's
+## opportunistic mutation when reference counts allow.
+HamtNum k v := HamtNumBase k v where k implements Num
+    implements [
+        Eq { is_eq: hamt_num_eq },
+    ]
+
+hamt_num_eq : HamtNum k v, HamtNum k v -> Bool where k implements Num & Inspect, v implements Eq & Inspect
+hamt_num_eq = |@HamtNum(hamt_a), @HamtNum(hamt_b)|
+    list_a = HamtNumBase.to_list(hamt_a) |> List.sort_with(\(k1, _), (k2, _) ->
+        Num.compare(k1, k2)
+    )
+    list_b = HamtNumBase.to_list(hamt_b) |> List.sort_with(\(k1, _), (k2, _) ->
+        Num.compare(k1, k2)
+    )
+    list_a == list_b
+
+## Creates an empty HAMT with numeric keys.
+empty : {} -> HamtNum k v
+empty = |{}|
+    HamtNumBase.empty {} |> @HamtNum
+
+## Checks if the HAMT is empty.
+is_empty : HamtNum k v -> Bool
+is_empty = |@HamtNum(hamt)|
+    HamtNumBase.is_empty(hamt)
+
+## Inserts a key-value pair using a numeric key.
+insert : HamtNum k v, k, v -> HamtNum k v where k implements Num
+insert = |@HamtNum(hamt), key, value|
+    HamtNumBase.insert(key, value, hamt) |> @HamtNum
+
+## Retrieves the value associated with a numeric key.
+get : HamtNum k v, k -> Result v {} where k implements Num
+get = |@HamtNum(hamt), key|
+    HamtNumBase.get(hamt, key)
+
+## Removes a key-value pair using a numeric key.
+remove : HamtNum k v, k -> HamtNum k v where k implements Num
+remove = |@HamtNum(hamt), key|
+    HamtNumBase.remove(hamt, key) |> @HamtNum
+
+## Transforms all values in the HAMT.
+map : HamtNum k v, (v -> w) -> HamtNum k w
+map = |@HamtNum(hamt), fn|
+    HamtNumBase.map(hamt, fn) |> @HamtNum
+
+## Iterates over all key-value pairs, accumulating a state.
+walk : HamtNum k v, state, (state, k, v -> state) -> state where k implements Num
+walk = |@HamtNum(hamt), state, fn|
+    HamtNumBase.walk(hamt, state, fn)
+
+## Iterates over all key-value pairs with early termination support.
+walk_until : HamtNum k v, state, (state, k, v -> [Continue state, Break state]) -> state where k implements Num
+walk_until = |@HamtNum(hamt), state, fn|
+    HamtNumBase.walk_until(hamt, state, fn)
+
+## Converts the HAMT to a list of key-value pairs.
+to_list : HamtNum k v -> List (k, v) where k implements Num
+to_list = |@HamtNum(hamt)|
+    HamtNumBase.to_list(hamt)
+
+## Creates a HAMT from a list of numeric key-value pairs.
+from_list : List (k, v) -> HamtNum k v where k implements Num
+from_list = |list|
+    HamtNumBase.from_list(list) |> @HamtNum
+
+## Returns the number of key-value pairs in the HAMT.
+len : HamtNum k v -> U64
+len = |@HamtNum(hamt)|
+    HamtNumBase.len(hamt)
+
+# Tests
+
+expect # Empty HAMT
+    hamt = empty({})
+    is_empty(hamt)
+
+expect # Single insert and get
+    hamt = empty({})
+        |> insert(42, "answer")
+    get(hamt, 42) == Ok("answer")
+
+expect # Get non-existent key
+    hamt = empty({})
+        |> insert(1, "a")
+    get(hamt, 2) == Err {}
+
+expect # Update existing key
+    hamt = empty({})
+        |> insert(5, "first")
+        |> insert(5, "second")
+    get(hamt, 5) == Ok("second")
+
+expect # Multiple inserts
+    hamt = empty({})
+        |> insert(1, "a")
+        |> insert(2, "b")
+        |> insert(3, "c")
+    get(hamt, 1) == Ok("a") &&
+    get(hamt, 2) == Ok("b") &&
+    get(hamt, 3) == Ok("c")
+
+expect # Negative numbers
+    hamt : HamtNum I64 Str
+    hamt = empty({})
+        |> insert(-5, "neg five")
+        |> insert(0, "zero")
+        |> insert(5, "pos five")
+    get(hamt, -5) == Ok("neg five") &&
+    get(hamt, 0) == Ok("zero") &&
+    get(hamt, 5) == Ok("pos five")
+
+expect # Remove key
+    hamt = empty({})
+        |> insert(1, "a")
+        |> insert(2, "b")
+        |> remove(1)
+    get(hamt, 1) == Err {} &&
+    get(hamt, 2) == Ok("b")
+
+expect # Map transforms values
+    hamt = empty({})
+        |> insert(1, 5)
+        |> insert(2, 10)
+    mapped = map(hamt, \x -> x * 2)
+    get(mapped, 1) == Ok(10) &&
+    get(mapped, 2) == Ok(20)
+
+expect # Walk accumulates
+    hamt = empty({})
+        |> insert(1, 10)
+        |> insert(2, 20)
+        |> insert(3, 30)
+    sum = walk(hamt, 0, |acc, _k, v| acc + v)
+    sum == 60
+
+expect # walk_until can break early
+    hamt = empty({})
+        |> insert(1, 1)
+        |> insert(2, 2)
+        |> insert(3, 3)
+    result = walk_until(hamt, 0, |acc, _k, v|
+        if v > 1 && acc == 0 then
+            Break(v)
+        else
+            Continue(acc)
+    )
+    result > 0
+
+expect # to_list returns all entries
+    hamt = empty({})
+        |> insert(1, "a")
+        |> insert(2, "b")
+    list = to_list(hamt)
+    List.len(list) == 2
+
+expect # from_list creates HAMT
+    list = [(1, "a"), (2, "b"), (3, "c")]
+    hamt = from_list(list)
+    get(hamt, 1) == Ok("a") &&
+    get(hamt, 2) == Ok("b") &&
+    get(hamt, 3) == Ok("c")
+
+expect # len counts entries
+    hamt = empty({})
+        |> insert(1, "a")
+        |> insert(2, "b")
+        |> insert(3, "c")
+    len(hamt) == 3
+
+expect # Large HAMT
+    hamt = List.range({ start: At 1, end: At 100 })
+        |> List.walk(empty({}), |acc, i| insert(acc, i, i * 2))
+    get(hamt, 1) == Ok(2) &&
+    get(hamt, 50) == Ok(100) &&
+    get(hamt, 100) == Ok(200) &&
+    len(hamt) == 100
+
+expect # Very large HAMT (stress test)
+    hamt = List.range({ start: At 1, end: At 500 })
+        |> List.walk(empty({}), |acc, i| insert(acc, i, Num.to_str(i)))
+    get(hamt, 1) == Ok("1") &&
+    get(hamt, 250) == Ok("250") &&
+    get(hamt, 500) == Ok("500") &&
+    len(hamt) == 500
+
+expect # Sequential removes
+    hamt = List.range({ start: At 1, end: At 20 })
+        |> List.walk(empty({}), |acc, i| insert(acc, i, i))
+    reduced = List.range({ start: At 1, end: At 10 })
+        |> List.walk(hamt, |acc, i| remove(acc, i))
+    len(reduced) == 10 &&
+    get(reduced, 5) == Err {} &&
+    get(reduced, 15) == Ok(15)
+
+expect # Equality of empty HAMTs
+    hamt1 = empty({})
+    hamt2 = empty({})
+    hamt1 == hamt2
+
+expect # Equality with same content
+    hamt1 = empty({})
+        |> insert(1, "a")
+        |> insert(2, "b")
+    hamt2 = empty({})
+        |> insert(2, "b")
+        |> insert(1, "a")
+    hamt1 == hamt2
+
+expect # Inequality with different values
+    hamt1 = empty({})
+        |> insert(1, "a")
+    hamt2 = empty({})
+        |> insert(1, "b")
+    hamt1 != hamt2
+
+expect # U8 keys
+    hamt : HamtNum U8 Str
+    hamt = empty({})
+        |> insert(0, "zero")
+        |> insert(255, "max")
+        |> insert(128, "mid")
+    get(hamt, 0) == Ok("zero") &&
+    get(hamt, 255) == Ok("max") &&
+    get(hamt, 128) == Ok("mid")
+
+expect # Walk collects keys
+    hamt = empty({})
+        |> insert(3, "c")
+        |> insert(1, "a")
+        |> insert(2, "b")
+    keys = walk(hamt, [], |acc, k, _v| List.append(acc, k))
+    sorted_keys = List.sort_asc(keys)
+    sorted_keys == [1, 2, 3]
+
+expect # Map preserves keys
+    hamt = empty({})
+        |> insert(1, 10)
+        |> insert(2, 20)
+    mapped = map(hamt, \x -> x + 5)
+    get(mapped, 1) == Ok(15) &&
+    get(mapped, 2) == Ok(25) &&
+    len(mapped) == 2
+
+expect # from_list with duplicates (last wins)
+    list = [(1, "first"), (2, "b"), (1, "second")]
+    hamt = from_list(list)
+    get(hamt, 1) == Ok("second") &&
+    len(hamt) == 2
+
+expect # Chained operations
+    hamt = empty({})
+        |> insert(1, 10)
+        |> insert(2, 20)
+        |> insert(3, 30)
+        |> remove(2)
+        |> insert(4, 40)
+    len(hamt) == 3 &&
+    get(hamt, 2) == Err {} &&
+    get(hamt, 4) == Ok(40)

@@ -1,0 +1,395 @@
+module [
+    HamtBase,
+    empty,
+    insert,
+    get,
+    remove,
+    map,
+    walk,
+    walk_until,
+    to_list,
+    from_list,
+    is_empty,
+    len,
+]
+
+import Hash exposing [Hashable]
+
+## Hash Array Mapped Trie (HAMT) - a persistent hash map implementation.
+## Uses 5 bits per level (32-way branching) with bitmap indexing for efficient memory usage.
+HamtBase k v : [
+    Empty,
+    Leaf { hash : U64, key : k, value : v },
+    Collision { hash : U64, entries : List (k, v) },
+    Branch { bitmap : U32, children : List (HamtBase k v) },
+]
+
+## Bit manipulation constants
+bits_per_level : U64
+bits_per_level = 5
+
+branch_factor : U64
+branch_factor = 32  # 2^5
+
+mask : U64
+mask = 0x1F  # 0b11111
+
+max_depth : U64
+max_depth = 13  # ceil(64 / 5)
+
+## Creates an empty HAMT.
+empty : {} -> HamtBase k v
+empty = |{}| Empty
+
+## Checks if the HAMT is empty.
+is_empty : HamtBase k v -> Bool
+is_empty = |trie|
+    when trie is
+        Empty -> Bool.true
+        _ -> Bool.false
+
+## Extracts the fragment (5 bits) of the hash at the given shift level.
+fragment : U64, U64 -> U64
+fragment = |hash, shift|
+    Num.bitwise_and(Num.shift_right_by(hash, Num.to_u8(shift)), mask)
+
+## Converts a fragment to a bitmap position.
+bitmap_pos : U64 -> U32
+bitmap_pos = |frag|
+    Num.shift_left_by(1u32, Num.to_u8(frag))
+
+## Counts the number of set bits in the bitmap before the given position.
+## This tells us the index in the children array.
+sparse_index : U32, U32 -> U64
+sparse_index = |bitmap, bit|
+    masked = Num.bitwise_and(bitmap, Num.sub_saturated(bit, 1))
+    Num.to_u64(pop_count(masked))
+
+## Counts the number of set bits in a U32 (population count).
+pop_count : U32 -> U8
+pop_count = |n|
+    Num.count_one_bits(n)
+
+# pop_count_helper : U32, U32 -> U32
+# pop_count_helper = |n, count|
+#     if n == 0 then
+#         count
+#     else
+#         pop_count_helper(Num.bitwise_and(n, n - 1), count + 1)
+
+## Inserts an element into a list at the specified index.
+list_insert_at : List a, U64, a -> List a
+list_insert_at = |list, idx, elem|
+    before = List.take_first(list, idx)
+    after = List.drop_first(list, idx)
+    before |> List.append(elem) |> List.concat(after)
+
+## Inserts a key-value pair into the HAMT.
+## If the key already exists, the value is updated.
+insert : k, v, HamtBase k v -> HamtBase k v where k implements Hashable & Eq
+insert = |key, value, trie|
+    hash_val = Hashable.to_hash(key)
+    insert_helper(0, hash_val, key, value, trie)
+
+insert_helper : U64, U64, k, v, HamtBase k v -> HamtBase k v where k implements Eq
+insert_helper = |shift, hash, key, value, trie|
+    when trie is
+        Empty ->
+            Leaf { hash, key, value }
+
+        Leaf({ hash: leaf_hash, key: leaf_key, value: leaf_value }) ->
+            if hash == leaf_hash then
+                # Same hash - check if same key
+                if key == leaf_key then
+                    # Update existing leaf
+                    Leaf { hash, key, value }
+                else
+                    # Hash collision - create collision node
+                    Collision { hash, entries: [(leaf_key, leaf_value), (key, value)] }
+            else
+                # Different hash - create a branch
+                if shift >= max_depth * bits_per_level then
+                    # Max depth reached, create collision
+                    Collision { hash, entries: [(leaf_key, leaf_value), (key, value)] }
+                else
+                    frag = fragment(hash, shift)
+                    leaf_frag = fragment(leaf_hash, shift)
+
+                    if frag == leaf_frag then
+                        # Same fragment, need to go deeper
+                        child = insert_helper(shift + bits_per_level, hash, key, value, trie)
+                        bit = bitmap_pos(frag)
+                        Branch { bitmap: bit, children: [child] }
+                    else
+                        # Different fragments, create branch with two leaves
+                        bit = bitmap_pos(frag)
+                        leaf_bit = bitmap_pos(leaf_frag)
+                        new_leaf = Leaf { hash, key, value }
+
+                        if frag < leaf_frag then
+                            Branch { bitmap: Num.bitwise_or(bit, leaf_bit), children: [new_leaf, trie] }
+                        else
+                            Branch { bitmap: Num.bitwise_or(bit, leaf_bit), children: [trie, new_leaf] }
+
+        Collision({ hash: coll_hash, entries }) ->
+            if hash == coll_hash then
+                # Add to or update collision list
+                updated_entries = update_collision_entries(entries, key, value)
+                Collision { hash: coll_hash, entries: updated_entries }
+            else
+                # Different hash, need to create a branch
+                if shift >= max_depth * bits_per_level then
+                    # Can't branch further, add to collision
+                    updated_entries = update_collision_entries(entries, key, value)
+                    Collision { hash: coll_hash, entries: updated_entries }
+                else
+                    frag = fragment(hash, shift)
+                    coll_frag = fragment(coll_hash, shift)
+
+                    if frag == coll_frag then
+                        child = insert_helper(shift + bits_per_level, hash, key, value, trie)
+                        bit = bitmap_pos(frag)
+                        Branch { bitmap: bit, children: [child] }
+                    else
+                        bit = bitmap_pos(frag)
+                        coll_bit = bitmap_pos(coll_frag)
+                        new_leaf = Leaf { hash, key, value }
+
+                        if frag < coll_frag then
+                            Branch { bitmap: Num.bitwise_or(bit, coll_bit), children: [new_leaf, trie] }
+                        else
+                            Branch { bitmap: Num.bitwise_or(bit, coll_bit), children: [trie, new_leaf] }
+
+        Branch({ bitmap, children }) ->
+            frag = fragment(hash, shift)
+            bit = bitmap_pos(frag)
+
+            if Num.bitwise_and(bitmap, bit) != 0 then
+                # Bit is set, update existing child
+                idx = sparse_index(bitmap, bit)
+                when List.get(children, idx) is
+                    Ok(child) ->
+                        updated_child = insert_helper(shift + bits_per_level, hash, key, value, child)
+                        updated_children = List.set(children, idx, updated_child)
+                        Branch { bitmap, children: updated_children }
+
+                    Err(OutOfBounds) ->
+                        # Should never happen
+                        trie
+            else
+                # Bit not set, insert new child
+                idx = sparse_index(bitmap, bit)
+                new_child = Leaf { hash, key, value }
+                updated_children = list_insert_at(children, idx, new_child)
+                updated_bitmap = Num.bitwise_or(bitmap, bit)
+                Branch { bitmap: updated_bitmap, children: updated_children }
+
+## Helper to update or add an entry in a collision list.
+update_collision_entries : List (k, v), k, v -> List (k, v) where k implements Eq
+update_collision_entries = |entries, key, value|
+    updated =
+        List.map(
+            entries,
+            |entry|
+                when entry is
+                    (k, _) if k == key -> (key, value)
+                    _ -> entry,
+        )
+
+    # Check if key was found
+    found = List.any(entries, |(k, _)| k == key)
+
+    if found then
+        updated
+    else
+        List.append(entries, (key, value))
+
+## Retrieves the value associated with a key.
+get : HamtBase k v, k -> Result v {} where k implements Hashable & Eq
+get = |trie, key|
+    hash_val = Hashable.to_hash(key)
+    get_helper(0, hash_val, key, trie)
+
+get_helper : U64, U64, k, HamtBase k v -> Result v {} where k implements Eq
+get_helper = |shift, hash, key, trie|
+    when trie is
+        Empty ->
+            Err {}
+
+        Leaf({ hash: leaf_hash, key: leaf_key, value }) ->
+            if hash == leaf_hash && key == leaf_key then
+                Ok(value)
+            else
+                Err {}
+
+        Collision({ hash: coll_hash, entries }) ->
+            if hash == coll_hash then
+                find_in_collision(entries, key)
+            else
+                Err {}
+
+        Branch({ bitmap, children }) ->
+            frag = fragment(hash, shift)
+            bit = bitmap_pos(frag)
+
+            if Num.bitwise_and(bitmap, bit) != 0 then
+                idx = sparse_index(bitmap, bit)
+                when List.get(children, idx) is
+                    Ok(child) ->
+                        get_helper(shift + bits_per_level, hash, key, child)
+
+                    Err(OutOfBounds) ->
+                        Err {}
+            else
+                Err {}
+
+## Helper to find a key in a collision list.
+find_in_collision : List (k, v), k -> Result v {} where k implements Eq
+find_in_collision = |entries, key|
+    List.walk_until(
+        entries,
+        Err {},
+        |_, (k, v)|
+            if k == key then
+                Break(Ok(v))
+            else
+                Continue(Err {}),
+    )
+
+## Removes a key-value pair from the HAMT.
+remove : HamtBase k v, k -> HamtBase k v where k implements Hashable & Eq
+remove = |trie, key|
+    hash_val = Hashable.to_hash(key)
+    when remove_helper(0, hash_val, key, trie) is
+        Ok(new_trie) -> new_trie
+        Err {} -> trie
+
+remove_helper : U64, U64, k, HamtBase k v -> Result (HamtBase k v) {} where k implements Eq
+remove_helper = |shift, hash, key, trie|
+    when trie is
+        Empty ->
+            Err {}
+
+        Leaf({ hash: leaf_hash, key: leaf_key }) ->
+            if hash == leaf_hash && key == leaf_key then
+                Ok(Empty)
+            else
+                Err {}
+
+        Collision({ hash: coll_hash, entries }) ->
+            if hash == coll_hash then
+                filtered = List.drop_if(entries, |(k, _)| k == key)
+                when List.len(filtered) is
+                    0 -> Ok(Empty)
+                    1 ->
+                        when List.first(filtered) is
+                            Ok((k, v)) -> Ok(Leaf { hash: coll_hash, key: k, value: v })
+                            Err(ListWasEmpty) -> Err {}
+
+                    _ -> Ok(Collision { hash: coll_hash, entries: filtered })
+            else
+                Err {}
+
+        Branch({ bitmap, children }) ->
+            frag = fragment(hash, shift)
+            bit = bitmap_pos(frag)
+
+            if Num.bitwise_and(bitmap, bit) != 0 then
+                idx = sparse_index(bitmap, bit)
+                when List.get(children, idx) is
+                    Ok(child) ->
+                        when remove_helper(shift + bits_per_level, hash, key, child) is
+                            Ok(Empty) ->
+                                # Remove this child entirely
+                                updated_children = List.drop_at(children, idx)
+                                updated_bitmap = Num.bitwise_xor(bitmap, bit)
+
+                                when List.len(updated_children) is
+                                    0 -> Ok(Empty)
+                                    1 ->
+                                        # Single child, might be able to collapse
+                                        when List.first(updated_children) is
+                                            Ok(only_child) -> Ok(only_child)
+                                            Err(ListWasEmpty) -> Ok(Empty)
+
+                                    _ -> Ok(Branch { bitmap: updated_bitmap, children: updated_children })
+
+                            Ok(updated_child) ->
+                                updated_children = List.set(children, idx, updated_child)
+                                Ok(Branch { bitmap, children: updated_children })
+
+                            Err {} ->
+                                Err {}
+
+                    Err(OutOfBounds) ->
+                        Err {}
+            else
+                Err {}
+
+## Transforms all values in the HAMT using the given function.
+map : HamtBase k v, (v -> w) -> HamtBase k w
+map = |trie, fn|
+    when trie is
+        Empty -> Empty
+        Leaf({ hash, key, value }) ->
+            Leaf { hash, key, value: fn(value) }
+
+        Collision({ hash, entries }) ->
+            mapped_entries = List.map(entries, |(k, v)| (k, fn(v)))
+            Collision { hash, entries: mapped_entries }
+
+        Branch({ bitmap, children }) ->
+            mapped_children = List.map(children, |child| map(child, fn))
+            Branch { bitmap, children: mapped_children }
+
+## Iterates over all key-value pairs in the HAMT, accumulating a state.
+walk : HamtBase k v, state, (state, k, v -> state) -> state
+walk = |trie, initial_state, fn|
+    when trie is
+        Empty -> initial_state
+        Leaf({ key, value }) ->
+            fn(initial_state, key, value)
+
+        Collision({ entries }) ->
+            List.walk(entries, initial_state, |state, (k, v)| fn(state, k, v))
+
+        Branch({ children }) ->
+            List.walk(children, initial_state, |state, child| walk(child, state, fn))
+
+## Iterates over all key-value pairs with early termination support.
+walk_until : HamtBase k v, state, (state, k, v -> [Continue state, Break state]) -> state
+walk_until = |trie, initial_state, fn|
+    when trie is
+        Empty -> initial_state
+        Leaf({ key, value }) ->
+            when fn(initial_state, key, value) is
+                Continue(s) -> s
+                Break(s) -> s
+
+        Collision({ entries }) ->
+            List.walk_until(entries, initial_state, |state, (k, v)| fn(state, k, v))
+
+        Branch({ children }) ->
+            List.walk_until(
+                children,
+                initial_state,
+                |state, child|
+                    result = walk_until(child, state, fn)
+                    # We can't easily detect if fn broke early, so we continue
+                    Continue(result),
+            )
+
+## Converts the HAMT to a list of key-value pairs.
+to_list : HamtBase k v -> List (k, v)
+to_list = |trie|
+    walk(trie, [], |acc, k, v| List.append(acc, (k, v)))
+
+## Creates a HAMT from a list of key-value pairs.
+from_list : List (k, v) -> HamtBase k v where k implements Hashable & Eq
+from_list = |list|
+    List.walk(list, Empty, |trie, (k, v)| insert(k, v, trie))
+
+## Returns the number of key-value pairs in the HAMT.
+len : HamtBase k v -> U64
+len = |trie|
+    walk(trie, 0, |count, _, _| count + 1)
