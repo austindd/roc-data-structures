@@ -1,0 +1,332 @@
+module [
+    BTreeBase,
+    empty,
+    insert,
+    get,
+    map,
+    walk,
+    walk_until,
+    to_list,
+    from_list,
+]
+
+import Ord exposing [Ord, compare, Ordering]
+
+## A B-tree is either Empty or a Node with keys, values, and children.
+## This is a simplified 2-3 tree (minimum degree 2) for compatibility.
+BTreeBase a b : [
+    Empty,
+    Node2 { k1 : a, v1 : b, left : BTreeBase a b, right : BTreeBase a b },
+    Node3 { k1 : a, v1 : b, k2 : a, v2 : b, left : BTreeBase a b, mid : BTreeBase a b, right : BTreeBase a b },
+]
+
+## Creates an empty B-tree.
+empty : {} -> BTreeBase a b
+empty = |{}| Empty
+
+## Retrieves the value associated with a key.
+get : BTreeBase a b, a -> Result b [NotFound] where a implements Ord
+get = |tree, key|
+    when tree is
+        Empty -> Err NotFound
+
+        Node2({ k1, v1, left, right }) ->
+            when compare(key, k1) is
+                EQ -> Ok v1
+                LT -> get(left, key)
+                GT -> get(right, key)
+
+        Node3({ k1, v1, k2, v2, left, mid, right }) ->
+            when compare(key, k1) is
+                EQ -> Ok v1
+                LT -> get(left, key)
+                GT ->
+                    when compare(key, k2) is
+                        EQ -> Ok v2
+                        LT -> get(mid, key)
+                        GT -> get(right, key)
+
+## Result of inserting into a tree - either fits or needs to split
+InsertResult a b : [
+    Fits (BTreeBase a b),
+    Splits { left : BTreeBase a b, k : a, v : b, right : BTreeBase a b },
+]
+
+## Inserts a key-value pair into the tree.
+insert : a, b, BTreeBase a b -> BTreeBase a b where a implements Ord
+insert = |key, value, tree|
+    when insert_helper(key, value, tree) is
+        Fits(new_tree) -> new_tree
+        Splits({ left, k, v, right }) ->
+            # Root split - create new root
+            Node2({ k1: k, v1: v, left, right })
+
+insert_helper : a, b, BTreeBase a b -> InsertResult a b where a implements Ord
+insert_helper = |key, value, tree|
+    when tree is
+        Empty ->
+            # Create a new 2-node
+            Fits(Node2({ k1: key, v1: value, left: Empty, right: Empty }))
+
+        Node2({ k1, v1, left, right }) ->
+            when compare(key, k1) is
+                EQ ->
+                    # Update existing key
+                    Fits(Node2({ k1, v1: value, left, right }))
+
+                LT ->
+                    # Insert into left subtree
+                    when insert_helper(key, value, left) is
+                        Fits(new_left) ->
+                            Fits(Node2({ k1, v1, left: new_left, right }))
+
+                        Splits({ left: ll, k: lk, v: lv, right: lr }) ->
+                            # Left child split - absorb into this node (becomes 3-node)
+                            Fits(Node3({ k1: lk, v1: lv, k2: k1, v2: v1, left: ll, mid: lr, right }))
+
+                GT ->
+                    # Insert into right subtree
+                    when insert_helper(key, value, right) is
+                        Fits(new_right) ->
+                            Fits(Node2({ k1, v1, left, right: new_right }))
+
+                        Splits({ left: rl, k: rk, v: rv, right: rr }) ->
+                            # Right child split - absorb into this node (becomes 3-node)
+                            Fits(Node3({ k1, v1, k2: rk, v2: rv, left, mid: rl, right: rr }))
+
+        Node3({ k1, v1, k2, v2, left, mid, right }) ->
+            when compare(key, k1) is
+                EQ ->
+                    # Update existing key
+                    Fits(Node3({ k1, v1: value, k2, v2, left, mid, right }))
+
+                LT ->
+                    # Insert into left subtree
+                    when insert_helper(key, value, left) is
+                        Fits(new_left) ->
+                            Fits(Node3({ k1, v1, k2, v2, left: new_left, mid, right }))
+
+                        Splits({ left: ll, k: lk, v: lv, right: lr }) ->
+                            # Left child split - this node must split
+                            left_node = Node2({ k1: lk, v1: lv, left: ll, right: lr })
+                            right_node = Node2({ k1: k2, v1: v2, left: mid, right })
+                            Splits({ left: left_node, k: k1, v: v1, right: right_node })
+
+                GT ->
+                    when compare(key, k2) is
+                        EQ ->
+                            # Update existing key
+                            Fits(Node3({ k1, v1, k2, v2: value, left, mid, right }))
+
+                        LT ->
+                            # Insert into middle subtree
+                            when insert_helper(key, value, mid) is
+                                Fits(new_mid) ->
+                                    Fits(Node3({ k1, v1, k2, v2, left, mid: new_mid, right }))
+
+                                Splits({ left: ml, k: mk, v: mv, right: mr }) ->
+                                    # Middle child split - this node must split
+                                    left_node = Node2({ k1, v1, left, right: ml })
+                                    right_node = Node2({ k1: k2, v1: v2, left: mr, right })
+                                    Splits({ left: left_node, k: mk, v: mv, right: right_node })
+
+                        GT ->
+                            # Insert into right subtree
+                            when insert_helper(key, value, right) is
+                                Fits(new_right) ->
+                                    Fits(Node3({ k1, v1, k2, v2, left, mid, right: new_right }))
+
+                                Splits({ left: rl, k: rk, v: rv, right: rr }) ->
+                                    # Right child split - this node must split
+                                    left_node = Node2({ k1, v1, left, right: mid })
+                                    right_node = Node2({ k1: rk, v1: rv, left: rl, right: rr })
+                                    Splits({ left: left_node, k: k2, v: v2, right: right_node })
+
+## Transforms the values in the tree using a provided function.
+map : BTreeBase a b, (b -> c) -> BTreeBase a c where a implements Ord
+map = |tree, fn|
+    when tree is
+        Empty -> Empty
+
+        Node2({ k1, v1, left, right }) ->
+            Node2({ k1, v1: fn(v1), left: map(left, fn), right: map(right, fn) })
+
+        Node3({ k1, v1, k2, v2, left, mid, right }) ->
+            Node3({ k1, v1: fn(v1), k2, v2: fn(v2), left: map(left, fn), mid: map(mid, fn), right: map(right, fn) })
+
+## Walks through the tree in key order, accumulating a state.
+walk : BTreeBase a b, state, (state, a, b -> state) -> state where a implements Ord
+walk = |tree, state, fn|
+    when tree is
+        Empty -> state
+
+        Node2({ k1, v1, left, right }) ->
+            state
+            |> \s -> walk(left, s, fn)
+            |> \s -> fn(s, k1, v1)
+            |> \s -> walk(right, s, fn)
+
+        Node3({ k1, v1, k2, v2, left, mid, right }) ->
+            state
+            |> \s -> walk(left, s, fn)
+            |> \s -> fn(s, k1, v1)
+            |> \s -> walk(mid, s, fn)
+            |> \s -> fn(s, k2, v2)
+            |> \s -> walk(right, s, fn)
+
+## Walks through the tree in key order, accumulating a state until a `Break` is returned.
+walk_until : BTreeBase a b, state, (state, a, b -> [Continue state, Break state]) -> state where a implements Ord
+walk_until = |tree, state, fn|
+    when tree is
+        Empty -> state
+
+        Node2({ k1, v1, left, right }) ->
+            left_state = walk_until(left, state, fn)
+            when fn(left_state, k1, v1) is
+                Continue(s) -> walk_until(right, s, fn)
+                Break(s) -> s
+
+        Node3({ k1, v1, k2, v2, left, mid, right }) ->
+            left_state = walk_until(left, state, fn)
+            when fn(left_state, k1, v1) is
+                Continue(mid_state) ->
+                    mid_result = walk_until(mid, mid_state, fn)
+                    when fn(mid_result, k2, v2) is
+                        Continue(s) -> walk_until(right, s, fn)
+                        Break(s) -> s
+                Break(s) -> s
+
+## Converts the tree into a list of (key, value) pairs, sorted by key.
+to_list : BTreeBase a b -> List (a, b) where a implements Ord
+to_list = |tree|
+    walk(tree, [], |list, key, value| List.append(list, (key, value)))
+
+## Creates a tree from a list of (key, value) pairs.
+from_list : List (a, b) -> BTreeBase a b where a implements Ord
+from_list = |pairs|
+    List.walk(pairs, empty {}, |tree, (key, value)| insert(key, value, tree))
+
+# --- Tests ---
+# Note: Tests are commented out due to current Roc compiler limitations
+# with recursive type inference in test contexts
+
+# TestKey := I64 implements [Ord { compare: test_key_compare }, Eq, Inspect]
+
+# test_key_compare : TestKey, TestKey -> Ordering
+# test_key_compare = |@TestKey(a), @TestKey(b)| Num.compare(a, b)
+
+expect # Empty tree
+    tree : BTreeBase TestKey Str
+    tree = empty {}
+    get(tree, @TestKey(1)) == Err NotFound
+
+expect # Single insert and get
+    tree = insert(@TestKey(42), "answer", empty {})
+    get(tree, @TestKey(42)) == Ok("answer")
+
+expect # Multiple inserts
+    tree = empty {}
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(3), "c")
+    get(tree, @TestKey(1)) == Ok("a") &&
+    get(tree, @TestKey(2)) == Ok("b") &&
+    get(tree, @TestKey(3)) == Ok("c")
+
+expect # from_list creates sorted tree
+    list = [(@TestKey(3), "c"), (@TestKey(1), "a"), (@TestKey(2), "b")]
+    tree = from_list(list)
+    to_list(tree) == [(@TestKey(1), "a"), (@TestKey(2), "b"), (@TestKey(3), "c")]
+
+expect # map transforms values
+    tree = empty {}
+        |> insert(@TestKey(1), 10)
+        |> insert(@TestKey(2), 20)
+        |> insert(@TestKey(3), 30)
+    mapped = map(tree, \x -> x * 2)
+    to_list(mapped) == [(@TestKey(1), 20), (@TestKey(2), 40), (@TestKey(3), 60)]
+
+expect # walk accumulates in order
+    tree = empty {}
+        |> insert(@TestKey(1), 10)
+        |> insert(@TestKey(2), 20)
+        |> insert(@TestKey(3), 30)
+    sum = walk(tree, 0, |acc, _k, v| acc + v)
+    sum == 60
+
+expect # Large tree sequential insertions
+    tree = List.range({ start: At 1, end: At 100 })
+        |> List.walk(empty {}, |acc, i| insert(@TestKey(i), i * 10, acc))
+    get(tree, @TestKey(1)) == Ok(10) &&
+    get(tree, @TestKey(50)) == Ok(500) &&
+    get(tree, @TestKey(100)) == Ok(1000)
+
+expect # Update same key multiple times
+    tree = empty {}
+        |> insert(@TestKey(5), "a")
+        |> insert(@TestKey(5), "b")
+        |> insert(@TestKey(5), "c")
+    get(tree, @TestKey(5)) == Ok("c") &&
+    List.len(to_list(tree)) == 1
+
+expect # walk_until breaks early
+    tree = empty {}
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(3), "c")
+        |> insert(@TestKey(4), "d")
+    result = walk_until(tree, [], |acc, _k, v|
+        if v == "c" then
+            Break(acc)
+        else
+            Continue(List.append(acc, v))
+    )
+    result == ["a", "b"]
+
+expect # walk_until never breaks
+    tree = empty {}
+        |> insert(@TestKey(1), 1)
+        |> insert(@TestKey(2), 2)
+        |> insert(@TestKey(3), 3)
+    result = walk_until(tree, 0, |acc, _k, v| Continue(acc + v))
+    result == 6
+
+expect # Get non-existent keys
+    tree = empty {}
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(4), "d")
+        |> insert(@TestKey(6), "f")
+    get(tree, @TestKey(1)) == Err NotFound &&
+    get(tree, @TestKey(3)) == Err NotFound &&
+    get(tree, @TestKey(5)) == Err NotFound &&
+    get(tree, @TestKey(7)) == Err NotFound
+
+expect # Descending insertions
+    tree = List.range({ start: At 1, end: At 30 })
+        |> List.reverse
+        |> List.walk(empty {}, |acc, i| insert(@TestKey(i), i, acc))
+    list = to_list(tree)
+    List.len(list) == 30 &&
+    List.first(list) == Ok((@TestKey(1), 1))
+
+expect # from_list with duplicates (last wins)
+    list = [(@TestKey(1), "first"), (@TestKey(2), "b"), (@TestKey(1), "second")]
+    tree = from_list(list)
+    result = to_list(tree)
+    List.len(result) == 2 &&
+    get(tree, @TestKey(1)) == Ok("second")
+
+expect # Large tree walk accumulation
+    tree = List.range({ start: At 1, end: At 100 })
+        |> List.walk(empty {}, |acc, i| insert(@TestKey(i), i, acc))
+    sum = walk(tree, 0, |acc, _k, v| acc + v)
+    sum == 5050
+
+expect # walk with string concatenation
+    tree = empty {}
+        |> insert(@TestKey(1), "a")
+        |> insert(@TestKey(2), "b")
+        |> insert(@TestKey(3), "c")
+        |> insert(@TestKey(4), "d")
+    result = walk(tree, "", |acc, _k, v| Str.concat(acc, v))
+    result == "abcd"
