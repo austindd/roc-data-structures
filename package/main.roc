@@ -3,6 +3,8 @@ package [
     AvlTreeNum,
     BTree,
     BTreeNum,
+    Heap,
+    HeapNum,
     ListMap,
     RbTree,
     LinkedList,
